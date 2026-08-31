@@ -7,7 +7,7 @@ Supervisor : Jumana Abu-Khalaf
 - '/app' - Flutter application (Web + Android)
 - '/backend' - Firebase configuration, database schema, decision logic (2 type)
 - '/docs' - Architecture docs, User guide, Technical guide
-dl;fkjeifhd
+
 ## Tech Stack
 - Fontent : Flutter (Dart)
 - Backend/Database : Firebase (Firestore + Authentication)

@@ -9,5 +9,5 @@ Supervisor : Jumana Abu-Khalaf
 - '/docs' - Architecture docs, User guide, Technical guide
 
 ## Tech Stack
-- Fontent : Flutter (Dart)
+- Fontend : Flutter (Dart)
 - Backend/Database : Firebase (Firestore + Authentication)

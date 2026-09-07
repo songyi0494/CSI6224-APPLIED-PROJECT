@@ -1,0 +1,590 @@
+{
+    "metadata": {
+        "id": "PATHWAY1",
+        "title": "Treatment naive patients - General"
+    },
+    "root": {
+        "type": "entryCondition",
+        "conditions": "REF:conditions"
+    },
+    "conditions": {
+        "all": [
+            {
+                "fact": "osteoporosisTreatmentStatus",
+                "operator": "equals",
+                "value": false
+            },
+            {
+                "fact": "minimalTraumaFracture",
+                "operator": "equals",
+                "value": true
+            },
+            {
+                "any": [
+                    {
+                        "all": [
+                            {
+                                "fact": "sex",
+                                "operator": "equals",
+                                "value": "female"
+                            },
+                            {
+                                "fact": "postmenopausal",
+                                "operator": "equals",
+                                "value": "true"
+                            }
+                        ]
+                    },
+                    {
+                        "all": [
+                            {
+                                "fact": "sex",
+                                "operator": "equals",
+                                "value": "male"
+                            },
+                            {
+                                "fact": "age",
+                                "operator": "greaterThanOrEqual",
+                                "value": 50
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "fact": "fractureSite",
+                "operator": "notIn",
+                "value": ["hand", "foot", "face", "ankle"]
+            }
+        ]
+    },
+    "investigations": {
+        "id": "BLOOD_TEST",
+        "label": "Initial Blood Investigations",
+        "items": [
+            {
+                "code": "FBC",
+                "label": "Full Blood Count"
+            },
+            {
+                "code": "UEC",
+                "label": "Urea, Electrolytes and Creatinine"
+            },
+            {
+                "code": "LFT",
+                "label": "Liver Function Tests"
+            },
+            {
+                "code": "CALCIUM_TOTAL",
+                "label": "Total Calcium"
+            },
+            {
+                "code": "CALCIUM_IONISED",
+                "label": "Ionised Calcium"
+            },
+            {
+                "code": "PHOSPHATE",
+                "label": "Phosphate"
+            },
+            {
+                "code": "TSH",
+                "label": "Thyroid Stimulating Hornmone"
+            },
+            {
+                "code": "VITAMIN_D",
+                "label": "Vitamin D"
+            }
+        ]
+    },
+    "commonAdvice": [
+        {
+            "type": "lifestyle",
+            "id": "LIFESTYLE_ADVICE",
+            "advice": "Ceasing smoking, Reducing alcohol intake, Weight bearing exercises"
+        },
+        {
+            "type": "vitaminD",
+            "id": "VITAMIN_D_40_TO_75_ADVICE",
+            "conditions": {
+                "all": [
+                    {
+                        "fact": "vitaminDLevel",
+                        "operator": "greaterThanOrEqual",
+                        "value": 40
+                    },
+                    {
+                        "fact": "vitaminDLevel",
+                        "operator": "lessThanOrEqual",
+                        "value": 75
+                    }
+                ]
+            },
+            "advice": [
+                "Cholecalciferol 25microg daily onging"
+            ]
+        },
+        {
+            "type": "vitaminD",
+            "id": "VITAMIN_D_25_TO_40_ADVICE",
+            "conditions": {
+                "all": [
+                    {
+                        "fact": "vitaminDLevel",
+                        "operator": "greaterThanOrEqual",
+                        "value": 25
+                    },
+                    {
+                        "fact": "vitaminDLevel",
+                        "operator": "lessThan",
+                        "value": 40
+                    }
+                ]
+            },
+            "advice": [
+                "Cholecalciferol 75microg daily for 6 weeks",
+                "Then 25microg daily"
+            ]
+        },
+        {
+            "type": "vitaminD",
+            "id": "VITAMIN_D_LESS_THAN_25_ADVICE",
+            "conditions": {
+                "fact": "vitaminDLevel",
+                "operator": "lessThan",
+                "value": 25
+            },
+            "advice": [
+                "Cholecalciferol 75microg daily for 6 weeks",
+                "Then 25microg daily",
+                "Recheck level before starting osteoporosis treatment"
+            ]
+        },
+        {
+            "type": "calcium",
+            "id": "CALCIUM_ADVICE",
+            "conditions": {
+                "any": [
+                    {
+                        "fact": "dietaryDairyServing",
+                        "operator": "lessThan",
+                        "value": 3
+                    },
+                    {
+                        "fact": "hypocalaemia",
+                        "operator": "equals",
+                        "value": true
+                    }
+                ]
+            },
+            "advice": "Calcium supplement 600mg daily"
+        },
+        {
+            "type": "protein",
+            "id": "PROTEIN_ADVICE",
+            "conditions": {
+                "fact": "olderPeople",
+                "operator": "equals",
+                "value": true
+            },
+            "advice": "Protein intake 1.0-1.2g/kg"
+        }
+    ],
+    "rules": [
+        {
+            "id": "MENOPAUSAL_HORMONAL_THERAPY",
+            "when": {
+                "all": [
+                    {
+                        "fact": "sex",
+                        "operator": "equals",
+                        "value": "female"
+                    },
+                    {
+                        "fact": "postmenopausal",
+                        "operator": "equals",
+                        "value": true
+                    },
+                    {
+                        "fact": "yearSincePostmenopausal",
+                        "operator": "lessThanOrEqual",
+                        "value": 10
+                    },
+                    {
+                        "fact": "minimalTraumaFracture",
+                        "operator": "equals",
+                        "value": true
+                    },
+                    {
+                        "fact": "isRobustWoman",
+                        "operator": "equals",
+                        "value": true
+                    }
+                ]
+            },
+            "then": [
+                {
+                    "type": "consideration",
+                    "recommendation": "Consider menopausal hormonal therapy",
+                    "requireReview": true
+                }
+            ]
+        },
+        {
+            "id": "RENAL_DYSFUNCTION",
+            "when": {
+                "fact": "eGFR",
+                "operator": "lessThan",
+                "value": 30
+            },
+            "then": [
+                {
+                    "type": "referral",
+                    "destination": "SPECIALIST",
+                    "reason": "Antiresorptive therapy may increase risk of hypocalcaemia in presence of significant renal dysfunction"
+                }
+            ],
+            "stopPathway": true
+        },
+        {
+            "id": "ON_OSTEOPOROSIS_TREATMENT",
+            "when": {
+                "fact": "osteoporosisTreatmentStatus",
+                "operator": "equals",
+                "value": true
+            },
+            "then": [
+                {
+                    "type": "pathwayRedirect",
+                    "targetPathway": "PATHWAY2"
+                }
+            ],
+            "stopPathway": true
+        },
+        {
+            "id": "RESIDENTIAL_CARE_OR_SEVERE_FRAILTY_OR_SHORT_LIFE_EXPECTANCY",
+            "when": {
+                "any": [
+                    {
+                        "fact": "liveInResidentialCare",
+                        "operator": "equals",
+                        "value": true
+                    },
+                    {
+                        "fact": "clinicalFrailtyScore",
+                        "operator": "greaterThanOrEqual",
+                        "value": 6
+                    },
+                    {
+                        "fact": "lifeExpectancy",
+                        "operator": "lessThan",
+                        "value": 7
+                    }
+                ]
+            },
+            "then": [
+                {
+                    "type": "medication",
+                    "medication": "Denosumab",
+                    "dose": "60mg",
+                    "route": "subcut",
+                    "frequency": "6 monthly",
+                    "requireReview": true
+                },
+                {
+                    "type": "followUp",
+                    "destination": "GP"
+                }
+            ],
+            "stopPathway": true
+        },
+        {
+            "id": "ADHERENCE_CONCERN",
+            "when": {
+                "any": [
+                    {
+                        "fact": "knownPoorMedicationAdherence",
+                        "operator": "equals",
+                        "value": true
+                    },
+                    {
+                        "fact": "cognitiveImpairment",
+                        "operator": "equals",
+                        "value": true
+                    }
+                ]
+            },
+            "then": [
+                {
+                    "type": "treatmentOptions",
+                    "options": [
+                        {
+                            "medication": "Zoledronic acid",
+                            "dose": "5mg",
+                            "route": "IV infusion",
+                            "frequency": "yearly",
+                            "duration": "3 years"
+                        },
+                        {
+                            "medication": "Risedronate EC",
+                            "dose": "35mg",
+                            "route": "oral",
+                            "frequency": "weekly"
+                        }
+                    ],
+                    "requireReview": true
+                },
+                {
+                    "type": "followUp",
+                    "destination": "GP"
+                },
+                {
+                    "type": "review",
+                    "instruction": "Reassess fracture risk after 5 years or after 3 zoledronic acid doses"
+                }
+            ],
+            "stopPathway": true
+        },
+        {
+            "id": "DXA_NOT_WITHIN_2YEARS",
+            "when": {
+                "all": [
+                    {
+                        "fact": "testAvailable",
+                        "operator": "equals",
+                        "value": true
+                    },
+                    {
+                        "fact": "testWithinLast2Years",
+                        "operator": "equals",
+                        "value": false
+                    }
+                ]
+            },
+            "then": [
+                {
+                    "type": "investigation",
+                    "action": "Referral for BMD DXA scan (femoral neck or hip or lumbar spine)"
+                }
+            ]
+        },
+        {
+            "id": "DXA_DISAVAILABLE",
+            "when": {
+                "fact": "testAvailable",
+                "operator": "equals",
+                "value": false
+            },
+            "then": [
+                {
+                    "type": "treatmentOptions",
+                    "options": [
+                        {
+                            "medication": "Zoledronic acid",
+                            "dose": "5mg",
+                            "route": "IV infusion",
+                            "frequency": "yearly",
+                            "duration": "3 years"
+                        },
+                        {
+                            "medication": "Risedronate EC",
+                            "dose": "35mg",
+                            "route": "oral",
+                            "frequency": "weekly"
+                        },
+                        {
+                            "medication": "Denosumab",
+                            "dose": "60mg",
+                            "route": "subcut",
+                            "frequency": "6 monthly"
+                        }
+                    ],
+                    "requireReview": true
+                },
+                {
+                    "type": "followUp",
+                    "destination": "GP"
+                },
+                {
+                    "type": "review",
+                    "instruction": "Review fracture risk after 5 years or after 3 zoledronic acid doses"
+                },
+                {
+                    "type": "referral",
+                    "destination": "FRAGILE BONE CLINIC",
+                    "when": "After a maximum of 10 years of treatment"
+                },
+                {
+                    "type": "pathwayRedirect",
+                    "targetPathway": "PATHWAY4"
+                }
+            ],
+            "stopPathway": true
+        },
+        {
+            "id": "T_SCORE",
+            "when": {
+                "fact": "T-score",
+                "operator": "greaterThan",
+                "value": -2.5
+            },
+            "then": [
+                {
+                    "type": "treatmentOptions",
+                    "options": [
+                        {
+                            "medication": "Zoledronic acid",
+                            "dose": "5mg",
+                            "route": "IV infusion",
+                            "frequency": "yearly",
+                            "duration": "3 years"
+                        },
+                        {
+                            "medication": "Risedronate EC",
+                            "dose": "35mg",
+                            "route": "oral",
+                            "frequency": "weekly"
+                        },
+                        {
+                            "medication": "Denosumab",
+                            "dose": "60mg",
+                            "route": "subcut",
+                            "frequency": "6 monthly"
+                        }
+                    ],
+                    "requireReview": true
+                },
+                {
+                    "type": "followUp",
+                    "destination": "GP"
+                },
+                {
+                    "type": "review",
+                    "instruction": "Review fracture risk after 5 years or after 3 zoledronic acid doses"
+                },
+                {
+                    "type": "referral",
+                    "destination": "FRAGILE BONE CLINIC",
+                    "when": "After a maximum of 10 years of treatment"
+                },
+                {
+                    "type": "pathwayRedirect",
+                    "targetPathway": "PATHWAY4"
+                }
+            ],
+            "stopPathway": true
+        },
+        {
+            "id": "RECENT_MAJOR_FRACTURES",
+            "when": {
+                "fact": "hipVertebralOrMultipleFracturesInLast24M",
+                "operator": "equals",
+                "value": true
+            },
+            "then": [
+                {
+                    "type": "consideration",
+                    "recommendation": "Consider commencement of osteoanabolic therapy",
+                    "requireReview": true
+                },
+                {
+                    "type": "referral",
+                    "destination": "FRAGILE BONE CLINIC",
+                    "reason": "Specialist input"
+                }
+            ],
+            "stopPathway": true
+        },
+        {
+            "id": "RECENT_MAJOR_FRACTURES",
+            "when": {
+                "all": [
+                    {
+                        "fact": "hipVertebralOrMultipleFracturesInLast24M",
+                        "operator": "equals",
+                        "value": false
+                    },
+                    {
+                        "fact": "highRisk",
+                        "operator": "equals",
+                        "value": true
+                    }
+                ]
+            },
+            "then": [
+                {
+                    "type": "consideration",
+                    "recommendation": "Consider commencement of osteoanabolic therapy",
+                    "requireReview": true
+                },
+                {
+                    "type": "referral",
+                    "destination": "FRAGILE BONE CLINIC",
+                    "reason": "Specialist input"
+                }
+            ],
+            "stopPathway": true
+        },
+        {
+            "id": "RECENT_MAJOR_FRACTURES",
+            "when": {
+                "all": [
+                    {
+                        "fact": "hipVertebralOrMultipleFracturesInLast24M",
+                        "operator": "equals",
+                        "value": false
+                    },
+                    {
+                        "fact": "highRisk",
+                        "operator": "equals",
+                        "value": false
+                    }
+                ]
+            },
+            "then": [
+                {
+                    "type": "treatmentOptions",
+                    "options": [
+                        {
+                            "medication": "Zoledronic acid",
+                            "dose": "5mg",
+                            "route": "IV infusion",
+                            "frequency": "yearly",
+                            "duration": "3 years"
+                        },
+                        {
+                            "medication": "Risedronate EC",
+                            "dose": "35mg",
+                            "route": "oral",
+                            "frequency": "weekly"
+                        },
+                        {
+                            "medication": "Denosumab",
+                            "dose": "60mg",
+                            "route": "subcut",
+                            "frequency": "6 monthly"
+                        }
+                    ],
+                    "requireReview": true
+                },
+                {
+                    "type": "followUp",
+                    "destination": "GP"
+                },
+                {
+                    "type": "review",
+                    "instruction": "Review fracture risk after 5 years or after 3 zoledronic acid doses"
+                },
+                {
+                    "type": "referral",
+                    "destination": "FRAGILE BONE CLINIC",
+                    "when": "After a maximum of 10 years of treatment"
+                },
+                {
+                    "type": "pathwayRedirect",
+                    "targetPathway": "PATHWAY4"
+                }
+            ],
+            "stopPathway": true
+        }
+    ]
+}

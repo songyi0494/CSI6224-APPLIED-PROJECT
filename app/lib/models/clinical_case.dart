@@ -32,4 +32,11 @@ class ClinicalCase {
 
 enum ClinicalPathway { pathway1, pathway2 }
 
-enum ClinicalCaseStatus { draft, evaluated, approved, withheld, needsMoreInfo }
+enum ClinicalCaseStatus {
+  draft,
+  evaluated,
+  approved,
+  withheld,
+  needsMoreInfo,
+  followUpArranged,
+}

@@ -42,12 +42,14 @@ class _AuthScreenState extends State<AuthScreen> {
                     children: [
                       Text(
                         'Osteoporosis Pathways',
-                        style: Theme.of(context).textTheme.headlineMedium
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Secure patient feedback and clinical decision support prototype',
+                        'Clinical decision support for osteoporosis care',
                         style: Theme.of(context).textTheme.bodyLarge,
                       ),
                       const SizedBox(height: 24),
@@ -120,9 +122,8 @@ class _AuthScreenState extends State<AuthScreen> {
     widget.onSignedIn(
       AppUser(
         id: _role == UserRole.clinician ? 'clinician-demo' : 'patient-demo',
-        displayName: _role == UserRole.clinician
-            ? 'Dr Demo Clinician'
-            : 'Demo Patient',
+        displayName:
+            _role == UserRole.clinician ? 'Dr Demo Clinician' : 'Avery Martin',
         email: _emailController.text.trim(),
         role: _role,
       ),

@@ -37,9 +37,14 @@ class AppScaffold extends StatelessWidget {
       ),
       floatingActionButton: floatingActionButton,
       body: SafeArea(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1180),
-          child: Padding(padding: const EdgeInsets.all(20), child: child),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1180),
+              child: child,
+            ),
+          ),
         ),
       ),
     );

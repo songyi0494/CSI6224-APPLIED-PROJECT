@@ -23,14 +23,16 @@ class PathwayFormScreen extends StatefulWidget {
 
 class _PathwayFormScreenState extends State<PathwayFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _patientNameController = TextEditingController(text: 'Avery Martin');
-  final _ageController = TextEditingController(text: '74');
-  final _egfrController = TextEditingController(text: '54');
-  final _frailtyController = TextEditingController(text: '4');
-  final _lifeExpectancyController = TextEditingController(text: '10');
-  final _tScoreController = TextEditingController(text: '-2.7');
+  final _patientNameController = TextEditingController();
+  final _ageController = TextEditingController();
+  final _egfrController = TextEditingController();
+  final _frailtyController = TextEditingController();
+  final _lifeExpectancyController = TextEditingController();
+  final _tScoreController = TextEditingController();
+  final _vitaminDController = TextEditingController();
 
   ClinicalPathway _pathway = ClinicalPathway.pathway1;
+  String? _activeCaseId;
   String _sex = 'female';
   String _fractureSite = 'hip';
   bool _postmenopausal = true;
@@ -43,7 +45,18 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
   bool _dxaWithinTwoYears = true;
   bool _majorRecentFracture = true;
   bool _highRisk = true;
+  bool _historyOfMiOrStroke = false;
+  bool _loadingExisting = false;
   bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _activeCaseId = widget.existingCaseId;
+    if (widget.existingCaseId != null) {
+      _loadExistingCase(widget.existingCaseId!);
+    }
+  }
 
   @override
   void dispose() {
@@ -53,6 +66,7 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
     _frailtyController.dispose();
     _lifeExpectancyController.dispose();
     _tScoreController.dispose();
+    _vitaminDController.dispose();
     super.dispose();
   }
 
@@ -60,249 +74,295 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Pathway clinical input')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Card(
-              child: Padding(
+      body: _loadingExisting
+          ? const Center(child: CircularProgressIndicator())
+          : Form(
+              key: _formKey,
+              child: ListView(
                 padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Patient and pathway',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _patientNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Patient name',
-                      ),
-                      validator: _required,
-                    ),
-                    const SizedBox(height: 12),
-                    SegmentedButton<ClinicalPathway>(
-                      segments: const [
-                        ButtonSegment(
-                          value: ClinicalPathway.pathway1,
-                          label: Text('Pathway 1'),
-                        ),
-                        ButtonSegment(
-                          value: ClinicalPathway.pathway2,
-                          label: Text('Pathway 2'),
-                        ),
-                      ],
-                      selected: {_pathway},
-                      onSelectionChanged: (value) => setState(() {
-                        _pathway = value.first;
-                        _onOsteoporosisTreatment =
-                            _pathway == ClinicalPathway.pathway2;
-                      }),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Required clinical facts',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 16),
-                    _twoColumns(
-                      TextFormField(
-                        controller: _ageController,
-                        decoration: const InputDecoration(labelText: 'Age'),
-                        keyboardType: TextInputType.number,
-                        validator: _numberRequired,
-                      ),
-                      DropdownButtonFormField<String>(
-                        initialValue: _sex,
-                        decoration: const InputDecoration(labelText: 'Sex'),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'female',
-                            child: Text('Female'),
+                children: [
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Patient and pathway',
+                            style: Theme.of(context).textTheme.titleLarge,
                           ),
-                          DropdownMenuItem(value: 'male', child: Text('Male')),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _patientNameController,
+                            decoration: const InputDecoration(
+                              labelText: 'Patient name',
+                            ),
+                            validator: _required,
+                          ),
+                          const SizedBox(height: 12),
+                          SegmentedButton<ClinicalPathway>(
+                            segments: const [
+                              ButtonSegment(
+                                value: ClinicalPathway.pathway1,
+                                label: Text('Pathway 1'),
+                              ),
+                              ButtonSegment(
+                                value: ClinicalPathway.pathway2,
+                                label: Text('Pathway 2'),
+                              ),
+                            ],
+                            selected: {_pathway},
+                            onSelectionChanged: (value) => setState(() {
+                              _pathway = value.first;
+                              _onOsteoporosisTreatment =
+                                  _pathway == ClinicalPathway.pathway2;
+                            }),
+                          ),
                         ],
-                        onChanged: (value) =>
-                            setState(() => _sex = value ?? _sex),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: _fractureSite,
-                      decoration: const InputDecoration(
-                        labelText: 'Fracture site',
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Required clinical facts',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 16),
+                          _twoColumns(
+                            TextFormField(
+                              controller: _ageController,
+                              decoration:
+                                  const InputDecoration(labelText: 'Age'),
+                              keyboardType: TextInputType.number,
+                              validator: _numberRequired,
+                            ),
+                            DropdownButtonFormField<String>(
+                              initialValue: _sex,
+                              decoration:
+                                  const InputDecoration(labelText: 'Sex'),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'female',
+                                  child: Text('Female'),
+                                ),
+                                DropdownMenuItem(
+                                    value: 'male', child: Text('Male')),
+                              ],
+                              onChanged: (value) =>
+                                  setState(() => _sex = value ?? _sex),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            initialValue: _fractureSite,
+                            decoration: const InputDecoration(
+                              labelText: 'Fracture site',
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 'hip', child: Text('Hip')),
+                              DropdownMenuItem(
+                                value: 'vertebral',
+                                child: Text('Vertebral'),
+                              ),
+                              DropdownMenuItem(
+                                  value: 'wrist', child: Text('Wrist')),
+                              DropdownMenuItem(
+                                value: 'humerus',
+                                child: Text('Humerus'),
+                              ),
+                              DropdownMenuItem(
+                                  value: 'hand', child: Text('Hand')),
+                              DropdownMenuItem(
+                                  value: 'foot', child: Text('Foot')),
+                              DropdownMenuItem(
+                                  value: 'face', child: Text('Face')),
+                              DropdownMenuItem(
+                                  value: 'ankle', child: Text('Ankle')),
+                            ],
+                            onChanged: (value) => setState(
+                              () => _fractureSite = value ?? _fractureSite,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _SwitchRow(
+                            label: 'Minimal trauma fracture',
+                            value: _minimalTraumaFracture,
+                            onChanged: (value) =>
+                                setState(() => _minimalTraumaFracture = value),
+                          ),
+                          _SwitchRow(
+                            label:
+                                'Currently or previously on osteoporosis treatment',
+                            value: _onOsteoporosisTreatment,
+                            subtitle:
+                                'Set automatically from the selected pathway.',
+                            onChanged: null,
+                          ),
+                          _SwitchRow(
+                            label: 'Postmenopausal',
+                            value: _postmenopausal,
+                            onChanged: (value) =>
+                                setState(() => _postmenopausal = value),
+                          ),
+                        ],
                       ),
-                      items: const [
-                        DropdownMenuItem(value: 'hip', child: Text('Hip')),
-                        DropdownMenuItem(
-                          value: 'vertebral',
-                          child: Text('Vertebral'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Investigations and risk flags',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 16),
+                          _twoColumns(
+                            TextFormField(
+                              controller: _egfrController,
+                              decoration:
+                                  const InputDecoration(labelText: 'eGFR'),
+                              keyboardType: TextInputType.number,
+                              validator: _numberRequired,
+                            ),
+                            TextFormField(
+                              controller: _tScoreController,
+                              decoration: const InputDecoration(
+                                labelText: 'Lowest T-score',
+                              ),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                decimal: true,
+                                signed: true,
+                              ),
+                              validator: _numberRequired,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _vitaminDController,
+                            decoration: const InputDecoration(
+                              labelText: 'Vitamin D level',
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: _numberRequired,
+                          ),
+                          const SizedBox(height: 12),
+                          _twoColumns(
+                            TextFormField(
+                              controller: _frailtyController,
+                              decoration: const InputDecoration(
+                                labelText: 'Clinical frailty score',
+                              ),
+                              keyboardType: TextInputType.number,
+                              validator: _numberRequired,
+                            ),
+                            TextFormField(
+                              controller: _lifeExpectancyController,
+                              decoration: const InputDecoration(
+                                labelText: 'Life expectancy in years',
+                              ),
+                              keyboardType: TextInputType.number,
+                              validator: _numberRequired,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _SwitchRow(
+                            label: 'Lives in residential aged care',
+                            value: _residentialCare,
+                            onChanged: (value) =>
+                                setState(() => _residentialCare = value),
+                          ),
+                          _SwitchRow(
+                            label: 'Known poor medication adherence',
+                            value: _poorAdherence,
+                            onChanged: (value) =>
+                                setState(() => _poorAdherence = value),
+                          ),
+                          _SwitchRow(
+                            label: 'Cognitive impairment',
+                            value: _cognitiveImpairment,
+                            onChanged: (value) =>
+                                setState(() => _cognitiveImpairment = value),
+                          ),
+                          _SwitchRow(
+                            label: 'BMD DXA available',
+                            value: _dxaAvailable,
+                            onChanged: (value) =>
+                                setState(() => _dxaAvailable = value),
+                          ),
+                          _SwitchRow(
+                            label: 'DXA completed within last 2 years',
+                            value: _dxaWithinTwoYears,
+                            onChanged: _dxaAvailable
+                                ? (value) =>
+                                    setState(() => _dxaWithinTwoYears = value)
+                                : null,
+                          ),
+                          _SwitchRow(
+                            label:
+                                'Hip, vertebral, or 2+ fractures in last 24 months',
+                            value: _majorRecentFracture,
+                            onChanged: (value) =>
+                                setState(() => _majorRecentFracture = value),
+                          ),
+                          _SwitchRow(
+                            label: 'Very high fracture risk',
+                            value: _highRisk,
+                            onChanged: (value) =>
+                                setState(() => _highRisk = value),
+                          ),
+                          _SwitchRow(
+                            label: 'History of myocardial infarction or stroke',
+                            value: _historyOfMiOrStroke,
+                            onChanged: (value) =>
+                                setState(() => _historyOfMiOrStroke = value),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    alignment: WrapAlignment.end,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _loading ? null : _saveDraft,
+                        icon: const Icon(Icons.save_outlined),
+                        label: const Text('Save draft'),
+                      ),
+                      FilledButton.icon(
+                        onPressed: _loading ? null : _evaluate,
+                        icon: _loading
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.rule),
+                        label: Text(
+                          _loading ? 'Evaluating' : 'Evaluate pathway',
                         ),
-                        DropdownMenuItem(value: 'wrist', child: Text('Wrist')),
-                        DropdownMenuItem(
-                          value: 'humerus',
-                          child: Text('Humerus'),
-                        ),
-                        DropdownMenuItem(value: 'hand', child: Text('Hand')),
-                        DropdownMenuItem(value: 'foot', child: Text('Foot')),
-                        DropdownMenuItem(value: 'face', child: Text('Face')),
-                        DropdownMenuItem(value: 'ankle', child: Text('Ankle')),
-                      ],
-                      onChanged: (value) => setState(
-                        () => _fractureSite = value ?? _fractureSite,
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    _SwitchRow(
-                      label: 'Minimal trauma fracture',
-                      value: _minimalTraumaFracture,
-                      onChanged: (value) =>
-                          setState(() => _minimalTraumaFracture = value),
-                    ),
-                    _SwitchRow(
-                      label:
-                          'Currently or previously on osteoporosis treatment',
-                      value: _onOsteoporosisTreatment,
-                      onChanged: (value) =>
-                          setState(() => _onOsteoporosisTreatment = value),
-                    ),
-                    _SwitchRow(
-                      label: 'Postmenopausal',
-                      value: _postmenopausal,
-                      onChanged: (value) =>
-                          setState(() => _postmenopausal = value),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Investigations and risk flags',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 16),
-                    _twoColumns(
-                      TextFormField(
-                        controller: _egfrController,
-                        decoration: const InputDecoration(labelText: 'eGFR'),
-                        keyboardType: TextInputType.number,
-                        validator: _numberRequired,
-                      ),
-                      TextFormField(
-                        controller: _tScoreController,
-                        decoration: const InputDecoration(
-                          labelText: 'Lowest T-score',
-                        ),
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                          signed: true,
-                        ),
-                        validator: _numberRequired,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _twoColumns(
-                      TextFormField(
-                        controller: _frailtyController,
-                        decoration: const InputDecoration(
-                          labelText: 'Clinical frailty score',
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: _numberRequired,
-                      ),
-                      TextFormField(
-                        controller: _lifeExpectancyController,
-                        decoration: const InputDecoration(
-                          labelText: 'Life expectancy in years',
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: _numberRequired,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _SwitchRow(
-                      label: 'Lives in residential aged care',
-                      value: _residentialCare,
-                      onChanged: (value) =>
-                          setState(() => _residentialCare = value),
-                    ),
-                    _SwitchRow(
-                      label: 'Known poor medication adherence',
-                      value: _poorAdherence,
-                      onChanged: (value) =>
-                          setState(() => _poorAdherence = value),
-                    ),
-                    _SwitchRow(
-                      label: 'Cognitive impairment',
-                      value: _cognitiveImpairment,
-                      onChanged: (value) =>
-                          setState(() => _cognitiveImpairment = value),
-                    ),
-                    _SwitchRow(
-                      label: 'BMD DXA available',
-                      value: _dxaAvailable,
-                      onChanged: (value) =>
-                          setState(() => _dxaAvailable = value),
-                    ),
-                    _SwitchRow(
-                      label: 'DXA completed within last 2 years',
-                      value: _dxaWithinTwoYears,
-                      onChanged: _dxaAvailable
-                          ? (value) =>
-                              setState(() => _dxaWithinTwoYears = value)
-                          : null,
-                    ),
-                    _SwitchRow(
-                      label:
-                          'Hip, vertebral, or 2+ fractures in last 24 months',
-                      value: _majorRecentFracture,
-                      onChanged: (value) =>
-                          setState(() => _majorRecentFracture = value),
-                    ),
-                    _SwitchRow(
-                      label: 'Very high fracture risk',
-                      value: _highRisk,
-                      onChanged: (value) => setState(() => _highRisk = value),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: _loading ? null : _evaluate,
-              icon: _loading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.rule),
-              label: Text(_loading ? 'Evaluating' : 'Evaluate pathway'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -328,11 +388,50 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
       return;
     }
     setState(() => _loading = true);
-    final clinicalCase = ClinicalCase(
-      id: widget.existingCaseId ?? '',
+    final saved = await widget.repository.saveClinicalCase(
+      _buildClinicalCase(ClinicalCaseStatus.evaluated),
+    );
+    final evaluation = await widget.repository.evaluatePathway(saved);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _loading = false;
+      _activeCaseId = saved.id;
+    });
+    widget.onEvaluationReady(saved, evaluation);
+  }
+
+  Future<void> _saveDraft() async {
+    if (_patientNameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a patient name before saving.')),
+      );
+      return;
+    }
+    setState(() => _loading = true);
+    final saved = await widget.repository.saveClinicalCase(
+      _buildClinicalCase(ClinicalCaseStatus.draft),
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _loading = false;
+      _activeCaseId = saved.id;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Pathway case saved as draft.')),
+    );
+    Navigator.of(context).pop(saved);
+  }
+
+  ClinicalCase _buildClinicalCase(ClinicalCaseStatus status) {
+    return ClinicalCase(
+      id: _activeCaseId ?? '',
       patientName: _patientNameController.text.trim(),
       pathway: _pathway,
-      status: ClinicalCaseStatus.evaluated,
+      status: status,
       facts: {
         'osteoporosisTreatmentStatus': _onOsteoporosisTreatment,
         'minimalTraumaFracture': _minimalTraumaFracture,
@@ -349,17 +448,51 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
         'testAvailable': _dxaAvailable,
         'testWithinLast2Years': _dxaWithinTwoYears,
         'T-score': double.tryParse(_tScoreController.text),
+        'vitaminDLevel': double.tryParse(_vitaminDController.text),
         'hipVertebralOrMultipleFracturesInLast24M': _majorRecentFracture,
         'highRisk': _highRisk,
+        'historyOfMiOrStroke': _historyOfMiOrStroke,
       },
     );
-    final saved = await widget.repository.saveClinicalCase(clinicalCase);
-    final evaluation = await widget.repository.evaluatePathway(saved);
+  }
+
+  Future<void> _loadExistingCase(String caseId) async {
+    setState(() => _loadingExisting = true);
+    final clinicalCase = await widget.repository.fetchClinicalCase(caseId);
     if (!mounted) {
       return;
     }
-    setState(() => _loading = false);
-    widget.onEvaluationReady(saved, evaluation);
+    if (clinicalCase != null) {
+      _applyClinicalCase(clinicalCase);
+    }
+    setState(() => _loadingExisting = false);
+  }
+
+  void _applyClinicalCase(ClinicalCase clinicalCase) {
+    final facts = clinicalCase.facts;
+    _activeCaseId = clinicalCase.id;
+    _pathway = clinicalCase.pathway;
+    _onOsteoporosisTreatment = _pathway == ClinicalPathway.pathway2;
+    _patientNameController.text = clinicalCase.patientName;
+    _ageController.text = facts['age']?.toString() ?? '';
+    _egfrController.text = facts['eGFR']?.toString() ?? '';
+    _frailtyController.text = facts['clinicalFrailtyScore']?.toString() ?? '';
+    _lifeExpectancyController.text = facts['lifeExpectancy']?.toString() ?? '';
+    _tScoreController.text = facts['T-score']?.toString() ?? '';
+    _vitaminDController.text = facts['vitaminDLevel']?.toString() ?? '65';
+    _sex = facts['sex']?.toString() ?? _sex;
+    _fractureSite = facts['fractureSite']?.toString() ?? _fractureSite;
+    _postmenopausal = facts['postmenopausal'] == true;
+    _minimalTraumaFracture = facts['minimalTraumaFracture'] == true;
+    _residentialCare = facts['liveInResidentialCare'] == true;
+    _poorAdherence = facts['knownPoorMedicationAdherence'] == true;
+    _cognitiveImpairment = facts['cognitiveImpairment'] == true;
+    _dxaAvailable = facts['testAvailable'] != false;
+    _dxaWithinTwoYears = facts['testWithinLast2Years'] != false;
+    _majorRecentFracture =
+        facts['hipVertebralOrMultipleFracturesInLast24M'] == true;
+    _highRisk = facts['highRisk'] == true;
+    _historyOfMiOrStroke = facts['historyOfMiOrStroke'] == true;
   }
 
   String? _required(String? value) {
@@ -385,17 +518,20 @@ class _SwitchRow extends StatelessWidget {
     required this.label,
     required this.value,
     required this.onChanged,
+    this.subtitle,
   });
 
   final String label;
   final bool value;
   final ValueChanged<bool>? onChanged;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(label),
+      subtitle: subtitle == null ? null : Text(subtitle!),
       value: value,
       onChanged: onChanged,
     );

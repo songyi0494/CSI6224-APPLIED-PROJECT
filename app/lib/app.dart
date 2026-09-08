@@ -22,13 +22,15 @@ class OsteoporosisPathwaysApp extends StatefulWidget {
 
 class _OsteoporosisPathwaysAppState extends State<OsteoporosisPathwaysApp> {
   final MockAppRepository _repository = MockAppRepository();
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   AppUser? _currentUser;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'CSI6224 Pathways',
+      title: 'Osteoporosis Pathways',
       debugShowCheckedModeBanner: false,
+      navigatorKey: _navigatorKey,
       theme: buildAppTheme(),
       home: _buildHome(),
     );
@@ -54,42 +56,54 @@ class _OsteoporosisPathwaysAppState extends State<OsteoporosisPathwaysApp> {
       user: user,
       repository: _repository,
       onSignOut: _signOut,
-      onOpenQuestionnaireBuilder: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => QuestionnaireBuilderScreen(repository: _repository),
+      onOpenQuestionnaireBuilder: (questionnaireId) async {
+        await _pushAndRefresh(
+          QuestionnaireBuilderScreen(
+            repository: _repository,
+            initialQuestionnaireId: questionnaireId,
           ),
         );
       },
-      onOpenPathwayCase: (caseId) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => PathwayFormScreen(
-              repository: _repository,
-              existingCaseId: caseId,
-              onEvaluationReady: _openEvaluation,
-            ),
+      onOpenPathwayCase: (caseId) async {
+        await _pushAndRefresh(
+          PathwayFormScreen(
+            repository: _repository,
+            existingCaseId: caseId,
+            onEvaluationReady: _openEvaluation,
           ),
         );
       },
-      onCreatePathwayCase: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => PathwayFormScreen(
-              repository: _repository,
-              onEvaluationReady: _openEvaluation,
-            ),
+      onCreatePathwayCase: () async {
+        await _pushAndRefresh(
+          PathwayFormScreen(
+            repository: _repository,
+            onEvaluationReady: _openEvaluation,
           ),
         );
       },
     );
   }
 
+  Future<void> _pushAndRefresh(Widget screen) async {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) {
+      return;
+    }
+    await navigator.push(MaterialPageRoute(builder: (_) => screen));
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   void _openEvaluation(
     ClinicalCase clinicalCase,
     PathwayEvaluation evaluation,
-  ) {
-    Navigator.of(context).push(
+  ) async {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) {
+      return;
+    }
+    await navigator.push(
       MaterialPageRoute(
         builder: (_) => RecommendationReviewScreen(
           clinicalCase: clinicalCase,
@@ -98,6 +112,9 @@ class _OsteoporosisPathwaysAppState extends State<OsteoporosisPathwaysApp> {
         ),
       ),
     );
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _signOut() {

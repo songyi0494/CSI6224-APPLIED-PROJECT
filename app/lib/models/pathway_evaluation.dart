@@ -5,6 +5,7 @@ class PathwayEvaluation {
     required this.actions,
     required this.trace,
     this.missingInputs = const [],
+    this.unsafeInputs = const [],
     this.warning,
   });
 
@@ -13,6 +14,7 @@ class PathwayEvaluation {
   final List<PathwayAction> actions;
   final List<String> trace;
   final List<String> missingInputs;
+  final List<String> unsafeInputs;
   final String? warning;
 
   factory PathwayEvaluation.fromJson(Map<String, dynamic> json) {
@@ -23,12 +25,12 @@ class PathwayEvaluation {
       decision: json['decision']?.toString() ?? 'no_action',
       actions: rawActions is List
           ? rawActions
-                .whereType<Map>()
-                .map(
-                  (item) =>
-                      PathwayAction.fromJson(Map<String, dynamic>.from(item)),
-                )
-                .toList()
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    PathwayAction.fromJson(Map<String, dynamic>.from(item)),
+              )
+              .toList()
           : const [],
       trace: rawTrace is List
           ? rawTrace.map((item) => item.toString()).toList()

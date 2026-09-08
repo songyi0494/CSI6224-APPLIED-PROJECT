@@ -8,6 +8,10 @@ Supervisor : Jumana Abu-Khalaf
 - `/code/supabase` - Supabase configuration and Edge Functions for clinical decision support
 - `/docs` - Architecture docs, integration contracts, user guide, technical guide
 
+## Integration Documentation
+
+- [Pathway 1 Integration Contract](docs/integration/pathway1_integration_contract.md)
+
 ## Tech Stack
 - Frontend: Flutter (Dart)
 - Backend/Database: Supabase

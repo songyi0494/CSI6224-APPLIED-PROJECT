@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'data/mock_app_repository.dart';
+import 'data/supabase_app_repository.dart';
 import 'models/app_user.dart';
 import 'models/clinical_case.dart';
 import 'models/pathway_evaluation.dart';
@@ -21,7 +21,7 @@ class OsteoporosisPathwaysApp extends StatefulWidget {
 }
 
 class _OsteoporosisPathwaysAppState extends State<OsteoporosisPathwaysApp> {
-  final MockAppRepository _repository = MockAppRepository();
+  final SupabaseAppRepository _repository = SupabaseAppRepository();  
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   AppUser? _currentUser;
 
@@ -40,6 +40,7 @@ class _OsteoporosisPathwaysAppState extends State<OsteoporosisPathwaysApp> {
     final user = _currentUser;
     if (user == null) {
       return AuthScreen(
+        repository: _repository,
         onSignedIn: (nextUser) => setState(() => _currentUser = nextUser),
       );
     }

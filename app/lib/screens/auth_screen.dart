@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
-
 import '../models/app_user.dart';
+import 'auth_signup.dart';
+import '../data/app_repository.dart';
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({required this.onSignedIn, super.key});
+  const AuthScreen({
+    required this.repository,
+    required this.onSignedIn, 
+    super.key});
 
+  final AppRepository repository;
   final ValueChanged<AppUser> onSignedIn;
 
   @override
@@ -102,6 +107,26 @@ class _AuthScreenState extends State<AuthScreen> {
                             : const Icon(Icons.login),
                         label: Text(_loading ? 'Signing in' : 'Continue'),
                       ),
+
+                      const SizedBox(height: 12),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text("Don't have an account?"),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const AuthSignUpScreen(),
+                                ),
+                              );
+                            },
+                            child: const Text('Sign up'),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -113,19 +138,46 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Future<void> _signIn() async {
-    setState(() => _loading = true);
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    if (!mounted) {
-      return;
+Future<void> _signIn() async {
+  final email = _emailController.text.trim();
+  final password = _passwordController.text;
+
+  if (email.isEmpty || password.isEmpty) {
+    _showMessage('Please enter your email and password.');
+    return;
+  }
+
+  setState(() {
+    _loading = true;
+  });
+
+  try {
+    final user = await widget.repository.signIn(
+      email: email,
+      password: password,
+      role: _role,
+    );
+
+    if (!mounted) return;
+
+    widget.onSignedIn(user);
+  } catch (e) {
+    _showMessage(e.toString());
+  } finally {
+    if (mounted) {
+      setState(() {
+        _loading = false;
+      });
     }
-    widget.onSignedIn(
-      AppUser(
-        id: _role == UserRole.clinician ? 'clinician-demo' : 'patient-demo',
-        displayName:
-            _role == UserRole.clinician ? 'Dr Demo Clinician' : 'Avery Martin',
-        email: _emailController.text.trim(),
-        role: _role,
+  }
+}
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
       ),
     );
   }

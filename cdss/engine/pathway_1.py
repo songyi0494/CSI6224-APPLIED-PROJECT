@@ -1,80 +1,132 @@
-from typing import Optional
-from cdss.engine.base import BaseRule
-from cdss.schemas import PatientClinicalInput, RuleTrace
+from typing import List, Tuple
+from cdss.schemas import ActionClassification, PatientClinicalInput, TraceStep
 
-class RuleP1SafetyContraindication(BaseRule):
-    def __init__(self):
-        super().__init__(
-            rule_id="P1_RULE_01",
-            pathway="Pathway 1 (Treatment-Naïve)",
-            priority=100,
-            description="Safety Gate: Renal compromise (CrCl < 35) or Hypocalcemia"
+
+def evaluate_pathway_1_rules(
+    patient: PatientClinicalInput, trace: List[TraceStep]
+) -> Tuple[ActionClassification, str, bool, bool]:
+    """
+    Evaluates Pathway 1 deterministic rules (Treatment-Naïve post-minimal trauma fracture).
+    Returns (action_type, recommendation_text, safety_fallback, requires_clinician_review).
+    """
+    trace.append(
+        TraceStep(
+            rule_id="ENTRY_CONDITION_PASSED",
+            rule_description="Entry eligibility check for Pathway 1",
+            condition_matched=True,
+            details="Patient is treatment-naïve post-minimal trauma fracture.",
         )
+    )
 
-    def evaluate(self, p: PatientClinicalInput) -> Optional[RuleTrace]:
-        if not p.treatment_history.is_treatment_naive:
-            return None
-        if (p.crcl_ml_min is not None and p.crcl_ml_min < 35.0) or p.hypocalcemia:
-            return RuleTrace(
-                rule_id=self.rule_id,
-                pathway=self.pathway,
-                condition_matched=f"Contraindication: CrCl={p.crcl_ml_min} mL/min (<35) or Hypocalcemia={p.hypocalcemia}",
-                priority=self.priority
+    # 1. Fracture Site Exclusion Check (hands, feet, face, ankle)
+    excluded_sites = ["hand", "hands", "foot", "feet", "face", "ankle"]
+    if patient.fracture_site and patient.fracture_site.strip().lower() in excluded_sites:
+        trace.append(
+            TraceStep(
+                rule_id="FRACTURE_SITE_EXCLUDED",
+                rule_description="Excluded peripheral fracture site check",
+                condition_matched=True,
+                details=f"Fracture site '{patient.fracture_site}' is excluded from osteoporosis pathways.",
             )
-        return None
-
-class RuleP1VeryHighRisk(BaseRule):
-    def __init__(self):
-        super().__init__(
-            rule_id="P1_RULE_02",
-            pathway="Pathway 1 (Treatment-Naïve)",
-            priority=80,
-            description="Very High/Imminent Risk: Recent hip/spine fracture or T-score <= -3.0"
+        )
+        return (
+            ActionClassification.NO_DECISION,
+            "Fractures of hands, feet, face, and ankle are excluded from standard osteoporosis pathways.",
+            False,
+            True,
         )
 
-    def evaluate(self, p: PatientClinicalInput) -> Optional[RuleTrace]:
-        if not p.treatment_history.is_treatment_naive:
-            return None
-
-        t_scores = [p.bmd.femoral_neck_t_score, p.bmd.lumbar_spine_t_score, p.bmd.total_hip_t_score]
-        lowest_t = min((t for t in t_scores if t is not None), default=0.0)
-
-        is_critical_fx = (
-            p.fracture_history.has_minimal_trauma_fracture and 
-            p.fracture_history.fracture_site in ["vertebral", "hip"] and
-            p.fracture_history.recent_fracture_within_12m
-        )
-
-        if is_critical_fx or lowest_t <= -3.0:
-            return RuleTrace(
-                rule_id=self.rule_id,
-                pathway=self.pathway,
-                condition_matched=f"Imminent Risk: Critical Fracture ({p.fracture_history.fracture_site}) within 12m or T-Score <= -3.0 (Lowest: {lowest_t})",
-                priority=self.priority
+    # 2. Severe Frailty / RACF / Limited Life Expectancy (Branch A)
+    is_frail = (
+        patient.lives_in_racf
+        or patient.clinical_frailty_score >= 6
+        or (patient.life_expectancy_years is not None and patient.life_expectancy_years < 7.0)
+    )
+    if is_frail:
+        trace.append(
+            TraceStep(
+                rule_id="P1_BRANCH_A_FRAILTY",
+                rule_description="Branch A: Severe frailty, residential care, or life expectancy < 7 years",
+                condition_matched=True,
+                details="Patient meets frailty criteria. Subcutaneous denosumab preferred (no DXA strictly required).",
             )
-        return None
-
-class RuleP1StandardOsteoporosis(BaseRule):
-    def __init__(self):
-        super().__init__(
-            rule_id="P1_RULE_03",
-            pathway="Pathway 1 (Treatment-Naïve)",
-            priority=60,
-            description="Standard Osteoporosis: T-score <= -2.5 or documented fragility fracture"
+        )
+        return (
+            ActionClassification.INITIATE_DENOSUMAB,
+            "Commence Denosumab 60 mg subcutaneous 6-monthly. Follow up with GP. CRITICAL: Do not delay doses by >4 weeks due to rebound vertebral fracture risk; do not stop without specialist consolidation plan.",
+            False,
+            False,
         )
 
-    def evaluate(self, p: PatientClinicalInput) -> Optional[RuleTrace]:
-        if not p.treatment_history.is_treatment_naive:
-            return None
-
-        t_scores = [p.bmd.femoral_neck_t_score, p.bmd.lumbar_spine_t_score, p.bmd.total_hip_t_score]
-        has_low_bmd = any(t <= -2.5 for t in t_scores if t is not None)
-
-        if has_low_bmd or p.fracture_history.has_minimal_trauma_fracture:
-            return RuleTrace(
-                rule_id=self.rule_id,
-                pathway=self.pathway,
-                condition_matched="Standard Osteoporosis: T-score <= -2.5 or prior minimal trauma fracture confirmed",
-                priority=self.priority
+    # 3. Adherence or Cognitive Concerns (Branch B)
+    if patient.adherence_or_cognitive_concerns:
+        trace.append(
+            TraceStep(
+                rule_id="P1_BRANCH_B_ADHERENCE",
+                rule_description="Branch B: Adherence or cognitive impairment concerns",
+                condition_matched=True,
+                details="Adherence concerns identified. Annual parenteral bisphosphonate preferred.",
             )
-        return None
+        )
+        return (
+            ActionClassification.INITIATE_THERAPY,
+            "Commence Zoledronic acid 5 mg IV annually for 3 years (consider 3-day dexamethasone cover for first dose) OR oral Risedronate EC 35 mg weekly. Review adherence and reassess fracture risk after 5 years (or 3 ZA doses).",
+            False,
+            False,
+        )
+
+    # 4. Very High Fracture Risk: Osteoanabolic First (Branch C)
+    has_severe_fracture = (
+        patient.is_hip_or_vertebral_fracture
+        or patient.fractures_in_last_24_months >= 2
+        or (patient.fracture_site and patient.fracture_site.strip().lower() in ["hip", "spine", "vertebra", "vertebral"])
+    )
+    if patient.t_score_lowest is not None and patient.t_score_lowest <= -2.5 and has_severe_fracture:
+        trace.append(
+            TraceStep(
+                rule_id="P1_VERY_HIGH_RISK_ANABOLIC",
+                rule_description="Branch C: T-score <= -2.5 and hip, vertebral, or >=2 fractures in 24M",
+                condition_matched=True,
+                details=f"T-score {patient.t_score_lowest} with severe fracture profile. Osteoanabolic before antiresorptive maximizes bone gain.",
+            )
+        )
+        return (
+            ActionClassification.ESCALATE_ANABOLIC,
+            "Consider commencement of osteoanabolic therapy (Romosozumab or Teriparatide) prior to antiresorptive exposure. Refer for specialist input / Fragile Bone Clinic.",
+            False,
+            True,
+        )
+
+    # 5. Standard PBS Antiresorptive Pathway
+    if patient.dxa_impractical or (patient.t_score_lowest is not None and patient.t_score_lowest <= -2.5):
+        rule_tag = "DXA_IMPRACTICAL_PBS_STANDARD" if patient.dxa_impractical else "STANDARD_PBS_ANTIRESORPTIVE"
+        trace.append(
+            TraceStep(
+                rule_id=rule_tag,
+                rule_description="Standard PBS-funded antiresorptive indication",
+                condition_matched=True,
+                details="DXA impractical or T-score <= -2.5 without severe anabolic criteria.",
+            )
+        )
+        return (
+            ActionClassification.INITIATE_THERAPY,
+            "Prescribe standard PBS-funded antiresorptive: Zoledronic acid 5 mg IV annually for 3 years OR oral Risedronate EC 35 mg weekly OR Denosumab 60 mg SC 6-monthly. Follow up with GP; review fracture risk after 5 years (or 3 ZA doses).",
+            False,
+            False,
+        )
+
+    # 6. Incomplete Diagnostic Data Fallback
+    trace.append(
+        TraceStep(
+            rule_id="P1_INCOMPLETE_DXA_REQUIRED",
+            rule_description="Missing BMD DXA scan",
+            condition_matched=True,
+            details="T-score not provided and DXA not marked impractical.",
+        )
+    )
+    return (
+        ActionClassification.NO_DECISION,
+        "Referral for BMD DXA scan required (if not performed within prior 2 years). If DXA is impractical to obtain, commence standard PBS-funded antiresorptive.",
+        True,
+        True,
+    )

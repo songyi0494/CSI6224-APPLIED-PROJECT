@@ -1,47 +1,94 @@
-from typing import List, Optional, Literal, Dict, Any
-from pydantic import BaseModel, Field
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, Field, model_validator
 
-class BoneMineralDensity(BaseModel):
-    femoral_neck_t_score: Optional[float] = Field(None, ge=-6.0, le=2.0)
-    lumbar_spine_t_score: Optional[float] = Field(None, ge=-6.0, le=2.0)
-    total_hip_t_score: Optional[float] = Field(None, ge=-6.0, le=2.0)
 
-class FractureHistory(BaseModel):
-    has_minimal_trauma_fracture: bool = False
-    fracture_site: Optional[Literal["vertebral", "hip", "wrist", "other", "none"]] = "none"
-    recent_fracture_within_12m: bool = False
+class BiologicalSex(str, Enum):
+    FEMALE = "female"
+    MALE = "male"
 
-class TreatmentHistory(BaseModel):
-    is_treatment_naive: bool
-    prior_antiresorptive: bool = False
-    prior_anabolic: bool = False
-    years_on_bisphosphonates: float = 0.0
-    recent_fracture_on_treatment: bool = False
-    adherence_issues: bool = False
+
+class PriorTreatmentStatus(str, Enum):
+    NAIVE = "treatment_naive"
+    PREVIOUS = "previous_treatment"
+
+
+class ActionClassification(str, Enum):
+    INITIATE_THERAPY = "INITIATE_THERAPY"
+    INITIATE_DENOSUMAB = "INITIATE_DENOSUMAB"
+    ESCALATE_ANABOLIC = "ESCALATE_ANABOLIC"
+    MAINTAIN_ANTIRESORPTIVE = "MAINTAIN_ANTIRESORPTIVE"
+    SPECIALIST_REFERRAL = "SPECIALIST_REFERRAL"
+    MONITOR = "MONITOR"
+    NO_DECISION = "NO_DECISION"
+
 
 class PatientClinicalInput(BaseModel):
-    case_id: str
+    response_id: str = Field(default_factory=lambda: "eval-transient")
     age: int = Field(..., ge=18, le=120)
-    gender: Literal["M", "F", "OTHER"]
-    crcl_ml_min: Optional[float] = Field(None, ge=5.0, le=200.0)
-    hypocalcemia: bool = False
-    bmd: BoneMineralDensity
-    fracture_history: FractureHistory
-    treatment_history: TreatmentHistory
+    sex: BiologicalSex
+    postmenopausal: bool = False
+    treatment_status: PriorTreatmentStatus = PriorTreatmentStatus.NAIVE
 
-class RuleTrace(BaseModel):
+    # Renal laboratory marker: preserve eGFR per Task J4 (no Cockcroft-Gault substitution)
+    egfr: Optional[float] = Field(None, ge=0.0, le=200.0)
+    crcl_ml_min: Optional[float] = Field(None, ge=0.0, le=200.0)
+
+    # Fracture and physical markers
+    minimal_trauma_fracture: bool = True
+    fracture_site: Optional[str] = None
+    is_hip_or_vertebral_fracture: bool = False
+    fractures_in_last_24_months: int = Field(0, ge=0)
+
+    # Frailty and care (FSFHG Pathway 1 Branch A)
+    lives_in_racf: bool = False
+    clinical_frailty_score: int = Field(1, ge=1, le=9)
+    life_expectancy_years: Optional[float] = Field(10.0, ge=0.0)
+
+    # Adherence & Cognitive (FSFHG Pathway 1 Branch B)
+    adherence_or_cognitive_concerns: bool = False
+
+    # DXA bone mineral density
+    t_score_lowest: Optional[float] = Field(None, ge=-6.0, le=2.0)
+    dxa_impractical: bool = False
+
+    # Pathway 2 cascade parameters
+    on_antiresorptive_gt_12_months: bool = False
+    patient_adherent: bool = True
+    symptomatic_fracture_in_last_12_months: bool = False
+    total_lifetime_fractures: int = Field(0, ge=0)
+    history_of_mi_or_stroke: bool = False
+    sequencing_from_denosumab: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_renal_parameters(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            egfr_val = values.get("egfr") or values.get("eGFR")
+            crcl_val = values.get("crcl_ml_min")
+            if egfr_val is not None and crcl_val is None:
+                values["crcl_ml_min"] = float(egfr_val)
+            elif crcl_val is not None and egfr_val is None:
+                values["egfr"] = float(crcl_val)
+        return values
+
+
+class TraceStep(BaseModel):
     rule_id: str
-    pathway: str
-    condition_matched: str
-    priority: int
+    rule_description: str
+    condition_matched: bool
+    details: str
+
 
 class CDSSRecommendationOutput(BaseModel):
-    case_id: str
-    pathway: str
-    action_endpoint: str
-    urgency: Literal["ROUTINE", "URGENT", "CLINICIAN_REVIEW"]
-    confidence_indicator: Literal["DEFINITIVE", "BORDERLINE", "INCOMPLETE_DATA"]
+    recommendation_id: str
+    response_id: str
+    pathway_evaluated: str
+    action_type: ActionClassification
+    recommendation_text: str
+    safety_fallback: bool
     requires_clinician_review: bool
-    reasoning_trace: List[RuleTrace]
-    clinical_rationale: str
+    reasoning_trace: List[TraceStep]
     shadow_ml_metrics: Optional[Dict[str, Any]] = None
+    evaluated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

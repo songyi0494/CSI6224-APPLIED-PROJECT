@@ -1,134 +1,115 @@
-from typing import List
-from cdss.schemas import PatientClinicalInput, CDSSRecommendationOutput, RuleTrace
-from cdss.engine.pathway_1 import RuleP1SafetyContraindication, RuleP1VeryHighRisk, RuleP1StandardOsteoporosis
-from cdss.engine.pathway_2 import RuleP2TreatmentFailure, RuleP2DrugHoliday
+import uuid
+from typing import Optional
+from cdss.engine.pathway_1 import evaluate_pathway_1_rules
+from cdss.engine.pathway_2 import evaluate_pathway_2_rules
+from cdss.schemas import (
+    ActionClassification,
+    CDSSRecommendationOutput,
+    PatientClinicalInput,
+    PriorTreatmentStatus,
+    TraceStep,
+)
 
 
 class FSFHGPipeline:
-    def __init__(self):
-        self.rules = [
-            RuleP1SafetyContraindication(),
-            RuleP1VeryHighRisk(),
-            RuleP1StandardOsteoporosis(),
-            RuleP2TreatmentFailure(),
-            RuleP2DrugHoliday()
-        ]
+    """Primary deterministic rule engine orchestrator for FSFHG Osteoporosis Management Pathways."""
 
     def evaluate(self, patient: PatientClinicalInput) -> CDSSRecommendationOutput:
-        triggered: List[RuleTrace] = []
+        trace: list[TraceStep] = []
+        rec_id = str(uuid.uuid4())
 
-        # 1. Evaluate all rules to construct an auditable reasoning trace
-        for rule in self.rules:
-            trace = rule.evaluate(patient)
-            if trace:
-                triggered.append(trace)
+        # -------------------------------------------------------------
+        # 1. Global Renal Safety Check (eGFR < 30 mL/min)
+        # -------------------------------------------------------------
+        effective_egfr: Optional[float] = patient.egfr if patient.egfr is not None else patient.crcl_ml_min
 
-        # 2. Sort traces by priority descending (highest priority executes first)
-        triggered.sort(key=lambda r: r.priority, reverse=True)
-
-        # 3. Handle cases where no specific pathway rules fired
-        if not triggered:
-            has_bmd = any(t is not None for t in [
-                patient.bmd.femoral_neck_t_score,
-                patient.bmd.lumbar_spine_t_score,
-                patient.bmd.total_hip_t_score
-            ])
-
-            # Missing essential diagnostic evidence -> defer to clinician review
-            if not has_bmd and not patient.fracture_history.has_minimal_trauma_fracture:
-                return CDSSRecommendationOutput(
-                    case_id=patient.case_id,
-                    pathway="Indeterminate",
-                    action_endpoint="No recommendation can be made from provided information.",
-                    urgency="CLINICIAN_REVIEW",
-                    confidence_indicator="INCOMPLETE_DATA",
-                    requires_clinician_review=True,
-                    reasoning_trace=[],
-                    clinical_rationale="Case lacks DXA T-scores and fracture history. Directing to clinician review rather than making unsupported assumptions."
+        # Guard against claiming safety when renal data is omitted
+        if effective_egfr is None:
+            trace.append(
+                TraceStep(
+                    rule_id="RENAL_DATA_MISSING_FALLBACK",
+                    rule_description="Audit check for renal biomarker availability",
+                    condition_matched=True,
+                    details="Renal function (eGFR) not provided. Cannot verify antiresorptive safety.",
                 )
-
-            # Normal / Osteopenia baseline
-            return CDSSRecommendationOutput(
-                case_id=patient.case_id,
-                pathway="Pathway 1 (Lifestyle / Monitoring)",
-                action_endpoint="Lifestyle optimization: Calcium 1000-1200mg daily, Vitamin D maintenance, weight-bearing exercise; repeat DXA in 2 years.",
-                urgency="ROUTINE",
-                confidence_indicator="DEFINITIVE",
-                requires_clinician_review=False,
-                reasoning_trace=[],
-                clinical_rationale="Bone mineral density values do not reach osteoporosis criteria (T > -2.5) and no minimal trauma fracture exists."
             )
-
-        top_rule = triggered[0]
-
-        # 4. Map top priority rule to clinical endpoint
-        if top_rule.rule_id == "P1_RULE_01":
             return CDSSRecommendationOutput(
-                case_id=patient.case_id,
-                pathway=top_rule.pathway,
-                action_endpoint="Withhold oral bisphosphonates/denosumab. Correct hypocalcemia or obtain specialist nephrology consult.",
-                urgency="URGENT",
-                confidence_indicator="DEFINITIVE",
+                recommendation_id=rec_id,
+                response_id=patient.response_id,
+                pathway_evaluated="Safety Pre-Check (Missing Renal Data)",
+                action_type=ActionClassification.NO_DECISION,
+                recommendation_text="Baseline renal labs (UEC / eGFR) missing. Obtain bloods before initiating antiresorptive therapy.",
+                safety_fallback=True,
                 requires_clinician_review=True,
-                reasoning_trace=triggered,
-                clinical_rationale="Patient meets primary safety contraindication criteria (CrCl < 35 mL/min or hypocalcemia)."
+                reasoning_trace=trace,
             )
 
-        if top_rule.rule_id == "P1_RULE_02":
+        if effective_egfr < 30.0:
+            trace.append(
+                TraceStep(
+                    rule_id="RENAL_DYSFUNCTION_IDENTIFIED",
+                    rule_description="Renal function gatekeeper (eGFR < 30 mL/min)",
+                    condition_matched=True,
+                    details=f"eGFR is {effective_egfr} mL/min (< 30). High risk of severe hypocalcaemia with antiresorptives.",
+                )
+            )
             return CDSSRecommendationOutput(
-                case_id=patient.case_id,
-                pathway=top_rule.pathway,
-                action_endpoint="Initiate upfront osteoanabolic therapy (e.g. Romosozumab / Teriparatide) or parenteral antiresorptive (Zoledronic Acid 5mg IV).",
-                urgency="URGENT",
-                confidence_indicator="DEFINITIVE",
+                recommendation_id=rec_id,
+                response_id=patient.response_id,
+                pathway_evaluated="Cross-Pathway Safety & Specialist Referral",
+                action_type=ActionClassification.SPECIALIST_REFERRAL,
+                recommendation_text="eGFR < 30 mL/min: Antiresorptive therapy carries a high hypocalcaemia risk. Seek specialist/nephrologist guidance. Avoid denosumab if pre-existing hypocalcaemia, malabsorption, or recent iron infusion.",
+                safety_fallback=False,
                 requires_clinician_review=True,
-                reasoning_trace=triggered,
-                clinical_rationale="Imminent fracture risk: recent vertebral/hip fracture within 12 months or critical T-score <= -3.0."
+                reasoning_trace=trace,
             )
 
-        if top_rule.rule_id == "P1_RULE_03":
+        trace.append(
+            TraceStep(
+                rule_id="RENAL_ADEQUATE",
+                rule_description="Renal function gatekeeper (eGFR >= 30 mL/min)",
+                condition_matched=False,
+                details=f"eGFR {effective_egfr} mL/min is adequate for routine treatment pathways.",
+            )
+        )
+
+        # -------------------------------------------------------------
+        # 2. Pathway Routing
+        # -------------------------------------------------------------
+        if patient.treatment_status == PriorTreatmentStatus.NAIVE:
+            action, text, fallback, review = evaluate_pathway_1_rules(patient, trace)
             return CDSSRecommendationOutput(
-                case_id=patient.case_id,
-                pathway=top_rule.pathway,
-                action_endpoint="Initiate first-line antiresorptive therapy (oral Risedronate/Alendronate, yearly Zoledronic Acid, or Denosumab 60mg 6-monthly).",
-                urgency="ROUTINE",
-                confidence_indicator="DEFINITIVE",
-                requires_clinician_review=False,
-                reasoning_trace=triggered,
-                clinical_rationale="Confirmed primary osteoporosis with acceptable baseline renal and electrolyte safety parameters."
+                recommendation_id=rec_id,
+                response_id=patient.response_id,
+                pathway_evaluated="FSFHG Pathway 1 (Treatment-Naïve)",
+                action_type=action,
+                recommendation_text=text,
+                safety_fallback=fallback,
+                requires_clinician_review=review,
+                reasoning_trace=trace,
             )
 
-        if top_rule.rule_id == "P2_RULE_01":
+        if patient.treatment_status == PriorTreatmentStatus.PREVIOUS:
+            action, text, fallback, review = evaluate_pathway_2_rules(patient, trace)
             return CDSSRecommendationOutput(
-                case_id=patient.case_id,
-                pathway=top_rule.pathway,
-                action_endpoint="Evaluate for treatment failure: assess compliance/absorption, screen secondary causes, and transition to anabolic therapy.",
-                urgency="URGENT",
-                confidence_indicator="DEFINITIVE",
-                requires_clinician_review=True,
-                reasoning_trace=triggered,
-                clinical_rationale="Breakthrough minimal trauma fracture sustained while on active antiresorptive therapy."
+                recommendation_id=rec_id,
+                response_id=patient.response_id,
+                pathway_evaluated="FSFHG Pathway 2 (Pre-Treated Subsequent Fracture)",
+                action_type=action,
+                recommendation_text=text,
+                safety_fallback=fallback,
+                requires_clinician_review=review,
+                reasoning_trace=trace,
             )
 
-        if top_rule.rule_id == "P2_RULE_02":
-            return CDSSRecommendationOutput(
-                case_id=patient.case_id,
-                pathway=top_rule.pathway,
-                action_endpoint="Consider bisphosphonate drug holiday for 12-24 months. Monitor bone turnover markers (CTX/P1NP) and repeat DXA in 12 months.",
-                urgency="ROUTINE",
-                confidence_indicator="BORDERLINE",
-                requires_clinician_review=True,
-                reasoning_trace=triggered,
-                clinical_rationale="Continuous bisphosphonate duration >= 5 years without incident fracture warrants drug holiday evaluation to minimize AFF risk."
-            )
-
+        # Default Catch-all
         return CDSSRecommendationOutput(
-            case_id=patient.case_id,
-            pathway="Specialist Triage",
-            action_endpoint="Direct to multidisciplinary bone clinic review.",
-            urgency="CLINICIAN_REVIEW",
-            confidence_indicator="BORDERLINE",
+            recommendation_id=rec_id,
+            response_id=patient.response_id,
+            pathway_evaluated="Unmapped Pathway",
+            action_type=ActionClassification.NO_DECISION,
+            recommendation_text="Case parameters outside established decision boundaries. Direct to clinician review.",
+            safety_fallback=True,
             requires_clinician_review=True,
-            reasoning_trace=triggered,
-            clinical_rationale="Clinical condition requires manual reconciliation."
+            reasoning_trace=trace,
         )

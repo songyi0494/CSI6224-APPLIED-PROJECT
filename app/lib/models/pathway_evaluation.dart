@@ -1,43 +1,59 @@
+class ReasoningTraceEntry {
+  const ReasoningTraceEntry({
+    required this.ruleId,
+    required this.matched,
+    required this.reason,
+  });
+  final String ruleId, reason;
+  final bool? matched;
+  factory ReasoningTraceEntry.fromJson(Map<String, dynamic> j) =>
+      ReasoningTraceEntry(
+        ruleId: j['rule_id'] as String,
+        matched: j['matched'] as bool?,
+        reason: j['reason'] as String,
+      );
+}
+
 class PathwayEvaluation {
   const PathwayEvaluation({
     required this.pathway,
     required this.decision,
     required this.actions,
     required this.trace,
+    required this.ruleVersion,
+    required this.routingReason,
     this.missingInputs = const [],
-    this.unsafeInputs = const [],
-    this.warning,
+    this.warnings = const [],
   });
-
-  final String pathway;
-  final String decision;
+  final String? pathway;
+  final String decision, ruleVersion, routingReason;
   final List<PathwayAction> actions;
-  final List<String> trace;
-  final List<String> missingInputs;
-  final List<String> unsafeInputs;
-  final String? warning;
-
-  factory PathwayEvaluation.fromJson(Map<String, dynamic> json) {
-    final rawActions = json['actions'];
-    final rawTrace = json['trace'];
-    return PathwayEvaluation(
-      pathway: json['pathway']?.toString() ?? 'unknown',
-      decision: json['decision']?.toString() ?? 'no_action',
-      actions: rawActions is List
-          ? rawActions
-              .whereType<Map>()
-              .map(
-                (item) =>
-                    PathwayAction.fromJson(Map<String, dynamic>.from(item)),
-              )
-              .toList()
-          : const [],
-      trace: rawTrace is List
-          ? rawTrace.map((item) => item.toString()).toList()
-          : const [],
-      missingInputs: const [],
-    );
-  }
+  final List<ReasoningTraceEntry> trace;
+  final List<String> missingInputs, warnings;
+  bool get canApprove =>
+      pathway == 'PATHWAY1' &&
+      decision == 'action_taken' &&
+      missingInputs.isEmpty &&
+      actions.isNotEmpty;
+  factory PathwayEvaluation.fromJson(
+    Map<String, dynamic> j,
+  ) => PathwayEvaluation(
+    pathway: j['pathway'] as String?,
+    decision: j['decision'] as String,
+    ruleVersion: j['rule_version'] as String,
+    routingReason: j['routing_reason'] as String,
+    actions: (j['actions'] as List)
+        .map((a) => PathwayAction.fromJson(Map<String, dynamic>.from(a as Map)))
+        .toList(),
+    trace: (j['trace'] as List)
+        .map(
+          (a) =>
+              ReasoningTraceEntry.fromJson(Map<String, dynamic>.from(a as Map)),
+        )
+        .toList(),
+    missingInputs: List<String>.from(j['missing_inputs'] as List),
+    warnings: List<String>.from(j['warnings'] as List),
+  );
 }
 
 class PathwayAction {
@@ -88,6 +104,6 @@ class PathwayAction {
     if (json['options'] is List) {
       return 'Review treatment options';
     }
-    return json.toString();
+    return 'Clinical action requires review.';
   }
 }

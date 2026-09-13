@@ -1,142 +1,40 @@
-import type { 
-    Condition,
-    PathwayDocument,
-    EvaluationResult,
-    Action,
-    SimpleCondition,
-} from "./types.ts";
+import { createClient } from 'npm:@supabase/supabase-js@2';
+import { evaluateAssessment } from './engine.ts';
 
-import pathwayDoc_1 from "./pathway_1.json" with { type: "json" };
-const doc = pathwayDoc_1 as PathwayDocument;
-
-import { createClient } from "supabase";
-
-const OPERATORS = {
-    equals: (a: unknown, b: unknown) => a === b,
-    notEquals: (a: unknown, b: unknown) => a !== b,
-    lessThan: (a: unknown, b: unknown) => typeof a === "number" && typeof b === "number" && a < b,
-    lessThanOrEqual: (a: unknown, b: unknown) => typeof a === "number" && typeof b === "number" && a <= b,
-    greaterThan: (a: unknown, b: unknown) => typeof a === "number" && typeof b === "number" && a > b,
-    greaterThanOrEqual: (a: unknown, b: unknown) => typeof a === "number" && typeof b === "number" && a >= b,
-    in: (a: unknown, list: unknown) => Array.isArray(list) && list.includes(a),
-    notIn: (a: unknown, list: unknown) => !Array.isArray(list) || !list.includes(a),
+const headers = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Content-Type': 'application/json',
 };
-
-function isSimpleCondition(
-    cond: Condition
-): cond is SimpleCondition {
-    return "fact" in cond && "operator" in cond;
-}
-
-function evaluateCondition(
-    cond: Condition,
-    facts: Record<string, unknown>
-): boolean {
-    if (isSimpleCondition(cond)) {
-        const { fact, operator, value } = cond;
-        const actual = facts[fact];
-        const fn = OPERATORS[operator as keyof typeof OPERATORS];
-        if (!fn) {
-            throw new Error(`Invalid operator: ${operator}`);
-        }
-        return !!fn(actual, value);
-    }
-
-    if ("all" in cond && cond.all) {
-        return cond.all.every((c) => evaluateCondition(c, facts));
-    }
-
-    if ("any" in cond && cond.any) {
-        return cond.any.some((c) => evaluateCondition(c, facts));
-    }
-
-    throw new Error(`Invalid condition structure: ${JSON.stringify(cond)}`);
-}
-
-function evaluatePathway(
-    doc: PathwayDocument,
-    facts: Record<string, unknown>
-): EvaluationResult {
-    const { metadata, root, conditions, rules } = doc;
-
-    if (root.type !== "entryCondition") {
-        throw new Error(`Invalid root: ${root}`);
-    }
-
-    const entryOK = evaluateCondition(conditions, facts);
-    if (!entryOK) {
-        return {
-            pathway: metadata.id,
-            decision: "not_applicable",
-            actions: [],
-            trace: ["ENTRY_CONDITION_FAILED"]
-        };
-    }
-
-    const actions: Action[] = [];
-    const trace: string[] = ["ENTRY_CONDITION_PASSED"];
-
-    for (const rule of rules) {
-        trace.push(rule.id);
-        const match = evaluateCondition(rule.when, facts);
-        if (match) {
-            actions.push(...(rule.then || []));
-        }
-        if (rule.stopPathway) {
-            trace.push("STOP_PATHWAY");
-            break;
-        }
-    }
-
-    return {
-        pathway: metadata.id,
-        decision: actions.length ? "action_taken" : "no_action",
-        actions,
-        trace,
-    };
-}
-
-Deno.serve(async (req: Request) => {
-    if (req.method === "OPTIONS") {
-        return new Response(null, {
-            status: 204,
-            headers: {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization",
-            },
-        });
-    }
-
-    try {
-        const contentType = req.headers.get("Content-Type") || "";
-        if (!contentType.includes("application/json")) {
-            throw new Error(`Invalid Content Type`);
-        }
-
-        const { facts } = await req.json();
-
-        if (!facts || typeof facts !== "object") {
-            throw new Error(`Invalid facts object`);
-        }
-
-        const result = evaluatePathway(doc, facts as Record<string, unknown>);
-
-        return new Response(JSON.stringify(result), {
-            status: 200,
-            headers: {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-            },
-        });
-    } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        return new Response(JSON.stringify({ error: message }), {
-                status: 400,
-                headers: {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Origin": "*",
-                },
-            });
-    }
+Deno.serve(async req => {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers });
+  if (req.method !== 'POST') return new Response('{}', { status: 405, headers });
+  try {
+    const authorization = req.headers.get('Authorization');
+    if (!authorization) return new Response('{}', { status: 401, headers });
+    const url = Deno.env.get('SUPABASE_URL')!;
+    const caller = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: authorization } },
+      auth: { persistSession: false },
+    });
+    const { data: { user }, error: authError } = await caller.auth.getUser();
+    if (authError || !user) return new Response('{}', { status: 401, headers });
+    const { assessment_id, revision } = await req.json();
+    if (typeof assessment_id !== 'string' || !Number.isInteger(revision)) throw new Error('Invalid request');
+    const { data: assessment, error: loadError } = await caller.rpc('get_assessment', { p_id: assessment_id });
+    if (loadError || !assessment || assessment.patient_id !== user.id) return new Response('{}', { status: 403, headers });
+    if (assessment.revision !== revision) return new Response('{}', { status: 409, headers });
+    // evaluate persisted facts, never a client-supplied recommendation or pathway
+    const result = evaluateAssessment(assessment.facts);
+    const backend = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
+    const { error } = await backend.rpc('complete_evaluation', {
+      p_actor: user.id, p_id: assessment_id, p_revision: revision, p_result: result,
+    });
+    if (error) return new Response(JSON.stringify({ error: 'Assessment could not be submitted. Reload and try again.' }), { status: 409, headers });
+    // raw evaluations remain private until clinician approval
+    return new Response(JSON.stringify({ assessment_id }), { headers });
+  } catch {
+    return new Response(JSON.stringify({ error: 'Assessment could not be submitted.' }), { status: 400, headers });
+  }
 });

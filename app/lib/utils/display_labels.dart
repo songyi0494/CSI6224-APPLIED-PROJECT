@@ -10,22 +10,7 @@ String clinicalPathwayLabel(ClinicalPathway pathway) {
   }
 }
 
-String clinicalCaseStatusLabel(ClinicalCaseStatus status) {
-  switch (status) {
-    case ClinicalCaseStatus.draft:
-      return 'Draft';
-    case ClinicalCaseStatus.evaluated:
-      return 'Evaluated';
-    case ClinicalCaseStatus.approved:
-      return 'Approved';
-    case ClinicalCaseStatus.withheld:
-      return 'Withheld';
-    case ClinicalCaseStatus.needsMoreInfo:
-      return 'Needs more information';
-    case ClinicalCaseStatus.followUpArranged:
-      return 'Follow-up arranged';
-  }
-}
+String clinicalCaseStatusLabel(ClinicalCaseStatus status) => status.label;
 
 String questionnaireStatusLabel(QuestionnaireStatus status) {
   switch (status) {

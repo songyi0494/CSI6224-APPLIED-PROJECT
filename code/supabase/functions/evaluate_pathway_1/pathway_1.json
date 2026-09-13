@@ -31,7 +31,7 @@
                             {
                                 "fact": "postmenopausal",
                                 "operator": "equals",
-                                "value": "true"
+                                "value": true
                             }
                         ]
                     },
@@ -495,7 +495,7 @@
             "stopPathway": true
         },
         {
-            "id": "RECENT_MAJOR_FRACTURES",
+            "id": "HIGH_RISK_WITHOUT_RECENT_MAJOR_FRACTURE",
             "when": {
                 "all": [
                     {
@@ -525,7 +525,7 @@
             "stopPathway": true
         },
         {
-            "id": "RECENT_MAJOR_FRACTURES",
+            "id": "STANDARD_OPTIONS_WITHOUT_RECENT_MAJOR_FRACTURE",
             "when": {
                 "all": [
                     {

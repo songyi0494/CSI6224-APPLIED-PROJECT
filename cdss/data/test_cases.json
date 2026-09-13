@@ -1,0 +1,627 @@
+[
+  {
+    "case_id": "CSV_CASE_1734616",
+    "age": 69,
+    "gender": "F",
+    "crcl_ml_min": 61.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.92,
+      "lumbar_spine_t_score": -2.74,
+      "total_hip_t_score": -2.82
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": true,
+      "fracture_site": "vertebral",
+      "recent_fracture_within_12m": true
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1419098",
+    "age": 32,
+    "gender": "F",
+    "crcl_ml_min": 98.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.56,
+      "lumbar_spine_t_score": -2.59,
+      "total_hip_t_score": -2.46
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": true,
+      "fracture_site": "vertebral",
+      "recent_fracture_within_12m": true
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1797916",
+    "age": 89,
+    "gender": "F",
+    "crcl_ml_min": 41.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -3.18,
+      "lumbar_spine_t_score": -3.76,
+      "total_hip_t_score": -3.08
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": false,
+      "fracture_site": "none",
+      "recent_fracture_within_12m": false
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1805337",
+    "age": 78,
+    "gender": "F",
+    "crcl_ml_min": 52.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.66,
+      "lumbar_spine_t_score": -3.32,
+      "total_hip_t_score": -2.56
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": false,
+      "fracture_site": "none",
+      "recent_fracture_within_12m": false
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1351334",
+    "age": 38,
+    "gender": "M",
+    "crcl_ml_min": 92.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.84,
+      "lumbar_spine_t_score": -3.38,
+      "total_hip_t_score": -2.7399999999999998
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": true,
+      "fracture_site": "vertebral",
+      "recent_fracture_within_12m": true
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1799320",
+    "age": 41,
+    "gender": "M",
+    "crcl_ml_min": 89.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.88,
+      "lumbar_spine_t_score": -2.8,
+      "total_hip_t_score": -2.78
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": true,
+      "fracture_site": "vertebral",
+      "recent_fracture_within_12m": true
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1577644",
+    "age": 20,
+    "gender": "M",
+    "crcl_ml_min": 110.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -3.17,
+      "lumbar_spine_t_score": -3.33,
+      "total_hip_t_score": -3.07
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": false,
+      "fracture_site": "none",
+      "recent_fracture_within_12m": false
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1443912",
+    "age": 39,
+    "gender": "M",
+    "crcl_ml_min": 91.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.47,
+      "lumbar_spine_t_score": -2.86,
+      "total_hip_t_score": -2.37
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": true,
+      "fracture_site": "vertebral",
+      "recent_fracture_within_12m": true
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1379331",
+    "age": 70,
+    "gender": "M",
+    "crcl_ml_min": 60.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.26,
+      "lumbar_spine_t_score": -3.25,
+      "total_hip_t_score": -2.1599999999999997
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": false,
+      "fracture_site": "none",
+      "recent_fracture_within_12m": false
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1824991",
+    "age": 19,
+    "gender": "F",
+    "crcl_ml_min": 111.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.81,
+      "lumbar_spine_t_score": -2.97,
+      "total_hip_t_score": -2.71
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": true,
+      "fracture_site": "vertebral",
+      "recent_fracture_within_12m": true
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1901899",
+    "age": 47,
+    "gender": "F",
+    "crcl_ml_min": 83.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -3.19,
+      "lumbar_spine_t_score": -3.33,
+      "total_hip_t_score": -3.09
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": true,
+      "fracture_site": "vertebral",
+      "recent_fracture_within_12m": true
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1575029",
+    "age": 55,
+    "gender": "F",
+    "crcl_ml_min": 75.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.94,
+      "lumbar_spine_t_score": -2.97,
+      "total_hip_t_score": -2.84
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": false,
+      "fracture_site": "none",
+      "recent_fracture_within_12m": false
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1133781",
+    "age": 19,
+    "gender": "F",
+    "crcl_ml_min": 111.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.8,
+      "lumbar_spine_t_score": -2.93,
+      "total_hip_t_score": -2.6999999999999997
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": true,
+      "fracture_site": "vertebral",
+      "recent_fracture_within_12m": true
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1718362",
+    "age": 81,
+    "gender": "M",
+    "crcl_ml_min": 49.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.67,
+      "lumbar_spine_t_score": -3.65,
+      "total_hip_t_score": -2.57
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": false,
+      "fracture_site": "none",
+      "recent_fracture_within_12m": false
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1461864",
+    "age": 77,
+    "gender": "M",
+    "crcl_ml_min": 53.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -3.05,
+      "lumbar_spine_t_score": -3.77,
+      "total_hip_t_score": -2.9499999999999997
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": false,
+      "fracture_site": "none",
+      "recent_fracture_within_12m": false
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1438964",
+    "age": 38,
+    "gender": "M",
+    "crcl_ml_min": 92.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -3.03,
+      "lumbar_spine_t_score": -2.91,
+      "total_hip_t_score": -2.9299999999999997
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": false,
+      "fracture_site": "none",
+      "recent_fracture_within_12m": false
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1317136",
+    "age": 50,
+    "gender": "F",
+    "crcl_ml_min": 80.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.96,
+      "lumbar_spine_t_score": -3.14,
+      "total_hip_t_score": -2.86
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": false,
+      "fracture_site": "none",
+      "recent_fracture_within_12m": false
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1675286",
+    "age": 75,
+    "gender": "M",
+    "crcl_ml_min": 55.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.77,
+      "lumbar_spine_t_score": -2.62,
+      "total_hip_t_score": -2.67
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": false,
+      "fracture_site": "none",
+      "recent_fracture_within_12m": false
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1389276",
+    "age": 39,
+    "gender": "F",
+    "crcl_ml_min": 91.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -3.24,
+      "lumbar_spine_t_score": -3.0,
+      "total_hip_t_score": -3.14
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": false,
+      "fracture_site": "none",
+      "recent_fracture_within_12m": false
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1551374",
+    "age": 66,
+    "gender": "M",
+    "crcl_ml_min": 64.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.74,
+      "lumbar_spine_t_score": -2.99,
+      "total_hip_t_score": -2.64
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": true,
+      "fracture_site": "vertebral",
+      "recent_fracture_within_12m": true
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1226126",
+    "age": 76,
+    "gender": "M",
+    "crcl_ml_min": 54.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -3.06,
+      "lumbar_spine_t_score": -2.96,
+      "total_hip_t_score": -2.96
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": false,
+      "fracture_site": "none",
+      "recent_fracture_within_12m": false
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1180529",
+    "age": 59,
+    "gender": "F",
+    "crcl_ml_min": 71.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -3.51,
+      "lumbar_spine_t_score": -3.06,
+      "total_hip_t_score": -3.4099999999999997
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": false,
+      "fracture_site": "none",
+      "recent_fracture_within_12m": false
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1286672",
+    "age": 77,
+    "gender": "M",
+    "crcl_ml_min": 53.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -3.13,
+      "lumbar_spine_t_score": -3.22,
+      "total_hip_t_score": -3.03
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": true,
+      "fracture_site": "vertebral",
+      "recent_fracture_within_12m": true
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1924559",
+    "age": 32,
+    "gender": "M",
+    "crcl_ml_min": 98.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.26,
+      "lumbar_spine_t_score": -3.11,
+      "total_hip_t_score": -2.1599999999999997
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": false,
+      "fracture_site": "none",
+      "recent_fracture_within_12m": false
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  },
+  {
+    "case_id": "CSV_CASE_1274424",
+    "age": 79,
+    "gender": "F",
+    "crcl_ml_min": 51.0,
+    "hypocalcemia": false,
+    "bmd": {
+      "femoral_neck_t_score": -2.83,
+      "lumbar_spine_t_score": -2.37,
+      "total_hip_t_score": -2.73
+    },
+    "fracture_history": {
+      "has_minimal_trauma_fracture": true,
+      "fracture_site": "vertebral",
+      "recent_fracture_within_12m": true
+    },
+    "treatment_history": {
+      "is_treatment_naive": true,
+      "prior_antiresorptive": false,
+      "prior_anabolic": false,
+      "years_on_bisphosphonates": 0.0,
+      "recent_fracture_on_treatment": false,
+      "adherence_issues": false
+    }
+  }
+]

@@ -18,9 +18,18 @@ const clinicalLabels = <String, String>{
   'hipVertebralOrMultipleFracturesInLast24M':
       'Hip, spine or multiple fractures in the last 24 months',
   'highRisk': 'Very high fracture risk recorded by a clinician',
+  'clinicianConfirmedVeryHighRisk':
+      'Very high fracture risk confirmed by clinician',
+  'dxaDoneWithinPrevious2Years':
+      'DXA done within the previous 2 years',
+  'dxaImpractical': 'DXA impractical to obtain',
+  'tScoreValue': 'Lowest recorded T-score',
+  'tScoreSite': 'T-score site',
   'historyOfMiOrStroke': 'History of heart attack or stroke',
   'yearSincePostmenopausal': 'Years since menopause',
+  'yearsSinceMenopause': 'Years since menopause',
   'isRobustWoman': 'Robustness confirmed by a clinician',
+  'robustWoman': 'Robustness confirmed by a clinician',
 };
 String clinicalLabel(String key) =>
     clinicalLabels[key] ?? 'Additional clinical information';
@@ -47,3 +56,17 @@ String factText(Object? value) => value == null
     : value is bool
     ? (value ? 'Yes' : 'No')
     : value.toString();
+
+String sexAtBirthText(String? value) {
+  if (value == 'female') return 'Female';
+  if (value == 'male') return 'Male';
+  if (value == 'other') return 'Another recorded sex';
+  if (value == 'not_provided') return 'Prefer not to say';
+  return 'Not provided';
+}
+
+String fractureSiteText(String? value) {
+  if (value == null || value.isEmpty) return 'Not provided';
+  if (value == 'vertebral') return 'Spine';
+  return value[0].toUpperCase() + value.substring(1);
+}

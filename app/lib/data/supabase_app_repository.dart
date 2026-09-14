@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_user.dart';
 import '../models/clinical_case.dart';
 import '../models/clinical_input.dart';
+import '../models/pathway1_clinician_input.dart';
 import '../models/questionnaire.dart';
 import 'app_repository.dart';
 
@@ -21,6 +22,21 @@ class SupabaseAppRepository implements AppRepository {
       throw AppException(message);
     }
   }
+
+  Map<String, Object?> _patientSubmittedFacts(ClinicalInput input) =>
+      {
+        for (final entry in input.toFacts().entries)
+          if (_patientOwnedFactKeys.contains(entry.key)) entry.key: entry.value,
+      };
+
+  static const _patientOwnedFactKeys = {
+    'osteoporosisTreatmentStatus',
+    'sex',
+    'postmenopausal',
+    'minimalTraumaFracture',
+    'fractureSite',
+    'liveInResidentialCare',
+  };
 
   @override
   Future<AppUser?> loadProfile() => _call(() async {
@@ -111,7 +127,7 @@ class SupabaseAppRepository implements AppRepository {
               params: {
                 'p_id': id,
                 'p_expected_revision': revision,
-                'p_facts': input.toFacts(),
+                'p_facts': _patientSubmittedFacts(input),
               },
             )
             as Map,
@@ -131,13 +147,62 @@ class SupabaseAppRepository implements AppRepository {
         revision: revision,
         input: input,
       );
-      await client.functions.invoke(
-        'evaluate_pathway_1',
-        body: {'assessment_id': saved.id, 'revision': saved.revision},
-      );
+      if (input.treated == true) {
+        await client.functions.invoke(
+          'evaluate_pathway_1',
+          body: {'assessment_id': saved.id, 'revision': saved.revision},
+        );
+      } else {
+        await client.rpc(
+          'submit_pathway1_for_clinician_input',
+          params: {'p_id': saved.id, 'p_revision': saved.revision},
+        );
+      }
       return fetchClinicalCase(saved.id);
     },
     'Your assessment could not be submitted. Your saved draft can be retried.',
+  );
+  @override
+  Future<ClinicalCase> completePathway1ClinicianInput({
+    required ClinicalCase assessment,
+    required Pathway1ClinicianInput input,
+  }) => _call(
+    () async {
+      await client.rpc(
+        'save_pathway1_clinician_input',
+        params: {
+          'p_id': assessment.id,
+          'p_revision': assessment.revision,
+          'p_updated_at': assessment.updatedAt.toUtc().toIso8601String(),
+          'p_clinician_facts': input.toJson(),
+        },
+      );
+      await client.functions.invoke(
+        'evaluate_pathway_1',
+        body: {'assessment_id': assessment.id, 'revision': assessment.revision},
+      );
+      return fetchClinicalCase(assessment.id);
+    },
+    'Clinical input could not be saved. Reload and try again.',
+  );
+  @override
+  Future<ClinicalCase> withdrawAssessment({
+    required ClinicalCase assessment,
+  }) => _call(
+    () async => ClinicalCase.fromJson(
+      Map<String, dynamic>.from(
+        await client.rpc(
+              'withdraw_assessment_for_edit',
+              params: {
+                'p_id': assessment.id,
+                'p_revision': assessment.revision,
+                'p_updated_at': assessment.updatedAt.toUtc().toIso8601String(),
+              },
+            )
+            as Map,
+      ),
+    ),
+    'This assessment is already being reviewed and can no longer be edited directly. Contact your clinician if information needs to be corrected.',
   );
   @override
   Future<void> recordClinicianDecision({

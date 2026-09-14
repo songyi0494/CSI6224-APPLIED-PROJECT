@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
@@ -7,7 +8,8 @@ import 'data/supabase_app_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  const mode = String.fromEnvironment('APP_MODE', defaultValue: 'unconfigured');
+  const defaultMode = kDebugMode ? 'mock' : 'unconfigured';
+  const mode = String.fromEnvironment('APP_MODE', defaultValue: defaultMode);
   try {
     final AppRepository repository;
     if (mode == 'mock') {

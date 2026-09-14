@@ -37,7 +37,7 @@ class ClinicianDashboardScreen extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Needs review — ${items.where((a) => a.canReview).length}',
+                  'Needs attention — ${items.where((a) => a.canOpenForClinician).length}',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
@@ -68,14 +68,15 @@ class ClinicianDashboardScreen extends StatelessWidget {
                 ],
               ),
             ),
-          if (items.where((a) => a.canReview).isEmpty)
+          if (items.where((a) => a.canOpenForClinician).isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 20),
               child: Text('No assessments are waiting for review.'),
             ),
           for (final a in [
+            ...items.where((a) => a.needsClinicianInput),
             ...items.where((a) => a.canReview),
-            ...items.where((a) => !a.canReview),
+            ...items.where((a) => !a.canOpenForClinician),
           ])
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -104,7 +105,13 @@ class ClinicianDashboardScreen extends StatelessWidget {
                       );
                       reload();
                     },
-                    child: Text(a.canReview ? 'Review' : 'View'),
+                    child: Text(
+                      a.needsClinicianInput
+                          ? 'Enter clinical input'
+                          : a.canReview
+                          ? 'Review'
+                          : 'View',
+                    ),
                   ),
                 ),
               ),

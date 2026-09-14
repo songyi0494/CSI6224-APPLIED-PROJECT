@@ -26,7 +26,7 @@ create table public.assessments (
   patient_id uuid not null references public.profiles(id),
   assigned_clinician_id uuid references public.profiles(id),
   revision integer not null check (revision > 0),
-  status text not null check (status in ('draft','awaiting_review','manual_review','approved','withheld','needs_more_information','follow_up_required')),
+  status text not null check (status in ('draft','clinician_input_required','awaiting_review','manual_review','approved','withheld','needs_more_information','follow_up_required')),
   pathway text check (pathway in ('PATHWAY1','PATHWAY2')),
   routing_reason text,
   submitted_at timestamptz,
@@ -37,6 +37,7 @@ create table public.clinical_inputs (
   assessment_id uuid not null references public.assessments(id) on delete cascade,
   revision integer not null,
   facts jsonb not null check (jsonb_typeof(facts) = 'object'),
+  clinician_facts jsonb not null default '{}'::jsonb check (jsonb_typeof(clinician_facts) = 'object'),
   created_at timestamptz not null default now(),
   primary key (assessment_id,revision)
 );
@@ -138,7 +139,10 @@ begin
     'facts',(select facts from public.clinical_inputs where assessment_id=p_id and revision=a.revision),
     'decision_notes',d.notes, 'reviewed_at',d.created_at, 'reviewed_by',d.clinician_id);
   if public.can_review(p_id) then
-    result := result || jsonb_build_object('evaluation',e.result,'evaluation_id',e.id);
+    result := result || jsonb_build_object(
+      'evaluation',e.result,
+      'evaluation_id',e.id,
+      'clinician_facts',(select clinician_facts from public.clinical_inputs where assessment_id=p_id and revision=a.revision));
   elsif a.status='approved' and d.action='approved' and d.evaluation_id=e.id then
     result := result || jsonb_build_object('approved_actions',e.result->'actions');
   end if;
@@ -153,11 +157,19 @@ $$;
 
 create function public.save_assessment(p_id uuid, p_expected_revision integer, p_facts jsonb) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare a public.assessments; new_revision integer;
+declare a public.assessments; new_revision integer; previous_clinician_facts jsonb := '{}'::jsonb;
 begin
   if not public.has_role('patient') then raise exception 'Not authorised' using errcode='42501'; end if;
   if p_expected_revision is null or p_expected_revision<0 then raise exception 'Invalid revision'; end if;
   if jsonb_typeof(p_facts) is distinct from 'object' or octet_length(p_facts::text)>50000 then raise exception 'Invalid clinical input'; end if;
+  p_facts := jsonb_strip_nulls(jsonb_build_object(
+    'osteoporosisTreatmentStatus',p_facts->'osteoporosisTreatmentStatus',
+    'age',(select to_jsonb(date_part('year',age(clock_timestamp(),p.date_of_birth))::integer) from public.profiles p where p.id=auth.uid() and p.date_of_birth is not null),
+    'sex',p_facts->'sex',
+    'postmenopausal',p_facts->'postmenopausal',
+    'minimalTraumaFracture',p_facts->'minimalTraumaFracture',
+    'fractureSite',p_facts->'fractureSite',
+    'liveInResidentialCare',p_facts->'liveInResidentialCare'));
   -- serialise initial creation as well as updates for a stable client request id
   perform pg_advisory_xact_lock(hashtextextended(p_id::text,0));
   select * into a from public.assessments where id=p_id for update;
@@ -166,7 +178,8 @@ begin
     if a.revision=p_expected_revision+1 and exists (select 1 from public.clinical_inputs where assessment_id=p_id and revision=a.revision and facts=p_facts) then
       return public.get_assessment(p_id);
     end if;
-    if a.revision is distinct from p_expected_revision or a.status not in ('draft','needs_more_information') then raise exception 'Assessment changed. Reload before editing'; end if;
+    if a.revision is distinct from p_expected_revision or a.status <> 'draft' then raise exception 'Assessment changed. Reload before editing'; end if;
+    select clinician_facts into previous_clinician_facts from public.clinical_inputs where assessment_id=p_id and revision=a.revision;
     new_revision := a.revision+1;
     update public.assessments set revision=new_revision,status='draft',pathway=null,routing_reason=null,updated_at=clock_timestamp() where id=p_id;
   else
@@ -174,23 +187,79 @@ begin
     new_revision := 1;
     insert into public.assessments(id,patient_id,revision,status) values (p_id,auth.uid(),new_revision,'draft');
   end if;
-  insert into public.clinical_inputs(assessment_id,revision,facts) values (p_id,new_revision,p_facts);
+  insert into public.clinical_inputs(assessment_id,revision,facts,clinician_facts) values (p_id,new_revision,p_facts,coalesce(previous_clinician_facts,'{}'::jsonb));
+  return public.get_assessment(p_id);
+end $$;
+
+create function public.submit_pathway1_for_clinician_input(p_id uuid,p_revision integer) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare a public.assessments; f jsonb;
+begin
+  if not public.has_role('patient') then raise exception 'Not authorised' using errcode='42501'; end if;
+  select * into a from public.assessments where id=p_id for update;
+  if not found or a.patient_id<>auth.uid() then raise exception 'Not authorised' using errcode='42501'; end if;
+  if a.revision is distinct from p_revision or a.status<>'draft' then raise exception 'Assessment changed. Reload before submitting'; end if;
+  select facts into f from public.clinical_inputs where assessment_id=p_id and revision=p_revision;
+  if f->>'osteoporosisTreatmentStatus' = 'true' then raise exception 'Pathway 2 submission uses the evaluator boundary'; end if;
+  update public.assessments
+  set status='clinician_input_required',
+      pathway='PATHWAY1',
+      routing_reason='No previous or current osteoporosis treatment was recorded.',
+      submitted_at=coalesce(submitted_at,clock_timestamp()),
+      updated_at=clock_timestamp()
+  where id=p_id;
+  return public.get_assessment(p_id);
+end $$;
+
+create function public.save_pathway1_clinician_input(p_id uuid,p_revision integer,p_updated_at timestamptz,p_clinician_facts jsonb) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare a public.assessments;
+begin
+  if not public.has_role('clinician') then raise exception 'Not authorised' using errcode='42501'; end if;
+  if jsonb_typeof(p_clinician_facts) is distinct from 'object' or octet_length(p_clinician_facts::text)>50000 then raise exception 'Invalid clinical input'; end if;
+  select * into a from public.assessments where id=p_id for update;
+  if not found or not public.can_review(p_id) then raise exception 'Not authorised' using errcode='42501'; end if;
+  if a.revision is distinct from p_revision or a.updated_at is distinct from p_updated_at or a.status<>'clinician_input_required' or a.pathway is distinct from 'PATHWAY1' then
+    raise exception 'Assessment changed. Reload before entering clinical input';
+  end if;
+  update public.clinical_inputs set clinician_facts=p_clinician_facts where assessment_id=p_id and revision=p_revision;
+  update public.assessments set assigned_clinician_id=auth.uid(),updated_at=clock_timestamp() where id=p_id;
   return public.get_assessment(p_id);
 end $$;
 
 -- only the verified edge function may persist an engine result
 create function public.complete_evaluation(p_actor uuid,p_id uuid,p_revision integer,p_result jsonb) returns void
 language plpgsql security definer set search_path = '' as $$
-declare a public.assessments; next_status text;
+declare a public.assessments; f jsonb; next_status text; existing_evaluation uuid;
 begin
   select * into a from public.assessments where id=p_id for update;
-  if not found or a.patient_id<>p_actor or not exists(select 1 from public.profiles where id=p_actor and role='patient') then raise exception 'Not authorised' using errcode='42501'; end if;
+  if not found then raise exception 'Not authorised' using errcode='42501'; end if;
   if a.revision is distinct from p_revision then raise exception 'Assessment changed'; end if;
-  if exists(select 1 from public.evaluations where assessment_id=p_id and revision=p_revision) then return; end if;
-  if a.status<>'draft' then raise exception 'Invalid assessment transition'; end if;
+  select facts into f from public.clinical_inputs where assessment_id=p_id and revision=p_revision;
+  if not (
+    (a.status='draft' and a.patient_id=p_actor and f->>'osteoporosisTreatmentStatus'='true'
+      and exists(select 1 from public.profiles where id=p_actor and role='patient'))
+    or
+    (a.status='clinician_input_required' and exists(select 1 from public.profiles where id=p_actor and role='clinician' and approval_status='approved')
+      and (a.assigned_clinician_id is null or a.assigned_clinician_id=p_actor))
+  ) then raise exception 'Not authorised' using errcode='42501'; end if;
   if p_result->>'rule_version' is null or p_result->>'decision' not in ('action_taken','no_action','not_applicable','needs_more_information','not_integrated') then raise exception 'Invalid engine result'; end if;
-  next_status := case when p_result->>'decision'='action_taken' then 'awaiting_review' else 'manual_review' end;
-  insert into public.evaluations(assessment_id,revision,result,rule_version) values (p_id,p_revision,p_result,p_result->>'rule_version');
+  next_status := case
+    when p_result->>'decision'='action_taken' then 'awaiting_review'
+    when p_result->>'decision'='needs_more_information'
+      and jsonb_array_length(coalesce(p_result->'missing_inputs','[]'::jsonb))>0
+      and not exists (
+        select 1 from jsonb_array_elements_text(coalesce(p_result->'missing_inputs','[]'::jsonb)) as missing(value)
+        where missing.value not in ('eGFR','clinicalFrailtyScore','lifeExpectancy','knownPoorMedicationAdherence','cognitiveImpairment','testAvailable','testWithinLast2Years','T-score','hipVertebralOrMultipleFracturesInLast24M','highRisk','yearSincePostmenopausal','isRobustWoman'))
+      then 'clinician_input_required'
+    else 'manual_review'
+  end;
+  select id into existing_evaluation from public.evaluations where assessment_id=p_id and revision=p_revision;
+  if existing_evaluation is null then
+    insert into public.evaluations(assessment_id,revision,result,rule_version) values (p_id,p_revision,p_result,p_result->>'rule_version');
+  else
+    update public.evaluations set result=p_result,rule_version=p_result->>'rule_version',created_at=clock_timestamp() where id=existing_evaluation;
+  end if;
   update public.assessments set status=next_status,pathway=p_result->>'pathway',routing_reason=p_result->>'routing_reason',submitted_at=clock_timestamp(),updated_at=clock_timestamp() where id=p_id;
 end $$;
 
@@ -211,7 +280,7 @@ begin
   update public.assessments set status=p_action,assigned_clinician_id=auth.uid(),updated_at=clock_timestamp() where id=p_id;
 end $$;
 
-revoke all on function public.has_role(text),public.can_review(uuid),public.owns_assessment(uuid),public.provision_profile(),public.review_clinician(uuid,text),public.get_assessment(uuid),public.list_assessments(),public.save_assessment(uuid,integer,jsonb),public.complete_evaluation(uuid,uuid,integer,jsonb),public.record_decision(uuid,integer,timestamptz,uuid,text,text) from public,anon,authenticated;
-grant execute on function public.has_role(text),public.can_review(uuid),public.owns_assessment(uuid),public.review_clinician(uuid,text),public.get_assessment(uuid),public.list_assessments(),public.save_assessment(uuid,integer,jsonb),public.record_decision(uuid,integer,timestamptz,uuid,text,text) to authenticated;
+revoke all on function public.has_role(text),public.can_review(uuid),public.owns_assessment(uuid),public.provision_profile(),public.review_clinician(uuid,text),public.get_assessment(uuid),public.list_assessments(),public.save_assessment(uuid,integer,jsonb),public.submit_pathway1_for_clinician_input(uuid,integer),public.save_pathway1_clinician_input(uuid,integer,timestamptz,jsonb),public.complete_evaluation(uuid,uuid,integer,jsonb),public.record_decision(uuid,integer,timestamptz,uuid,text,text) from public,anon,authenticated;
+grant execute on function public.has_role(text),public.can_review(uuid),public.owns_assessment(uuid),public.review_clinician(uuid,text),public.get_assessment(uuid),public.list_assessments(),public.save_assessment(uuid,integer,jsonb),public.submit_pathway1_for_clinician_input(uuid,integer),public.save_pathway1_clinician_input(uuid,integer,timestamptz,jsonb),public.record_decision(uuid,integer,timestamptz,uuid,text,text) to authenticated;
 grant execute on function public.complete_evaluation(uuid,uuid,integer,jsonb) to service_role;
 commit;

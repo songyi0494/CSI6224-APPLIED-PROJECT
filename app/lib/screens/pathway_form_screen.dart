@@ -5,6 +5,7 @@ import '../models/app_user.dart';
 import '../models/clinical_case.dart';
 import '../models/clinical_input.dart';
 import '../utils/clinical_labels.dart';
+import 'pathway_review_screen.dart';
 
 class PathwayFormScreen extends StatefulWidget {
   const PathwayFormScreen({
@@ -28,15 +29,7 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
   late int _revision;
   bool _saving = false;
   String? _error;
-  static const _numeric = [
-    'age',
-    'eGFR',
-    'clinicalFrailtyScore',
-    'lifeExpectancy',
-    'T-score',
-    'vitaminDLevel',
-    'yearSincePostmenopausal',
-  ];
+  static const _numeric = <String>[];
   @override
   void initState() {
     super.initState();
@@ -45,17 +38,6 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
     _answers.addAll(widget.assessment?.input.toFacts() ?? {});
     if (widget.assessment == null) {
       _answers['sex'] = widget.user.sexAtBirth;
-      final birth = widget.user.dateOfBirth;
-      if (birth != null) {
-        final now = DateTime.now();
-        _answers['age'] =
-            now.year -
-            birth.year -
-            ((now.month < birth.month ||
-                    (now.month == birth.month && now.day < birth.day))
-                ? 1
-                : 0);
-      }
     }
     for (final key in _numeric) {
       _numbers[key] = TextEditingController(
@@ -72,44 +54,39 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
     super.dispose();
   }
 
-  Future<void> _save(bool submit) async {
+  ClinicalInput _buildInput() {
+    final facts = Map<String, Object?>.from(_answers);
+    for (final key in _numeric) {
+      final raw = _numbers[key]!.text.trim();
+      facts[key] = raw.isEmpty
+          ? null
+          : (key == 'clinicalFrailtyScore'
+                ? int.parse(raw)
+                : double.parse(raw));
+    }
+    facts['age'] = _derivedAge();
+    for (final key in _clinicianOwnedFactKeys) {
+      facts.remove(key);
+    }
+    return ClinicalInput.fromFacts(facts);
+  }
+
+  Future<void> _saveDraft() async {
     if (!_form.currentState!.validate()) return;
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
-      final facts = Map<String, Object?>.from(_answers);
-      for (final key in _numeric) {
-        final raw = _numbers[key]!.text.trim();
-        facts[key] = raw.isEmpty
-            ? null
-            : (key == 'age' || key == 'clinicalFrailtyScore'
-                  ? int.parse(raw)
-                  : double.parse(raw));
-      }
-      final input = ClinicalInput.fromFacts(facts);
-      final result = submit
-          ? await widget.repository.submitAssessment(
-              id: _id,
-              revision: _revision,
-              input: input,
-            )
-          : await widget.repository.saveAssessment(
-              id: _id,
-              revision: _revision,
-              input: input,
-            );
+      final result = await widget.repository.saveAssessment(
+        id: _id,
+        revision: _revision,
+        input: _buildInput(),
+      );
       _revision = result.revision;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            submit
-                ? 'Assessment submitted. A clinician will review your information.'
-                : 'Assessment saved.',
-          ),
-        ),
+        const SnackBar(content: Text('Assessment saved.')),
       );
       Navigator.pop(context, true);
     } catch (e) {
@@ -124,30 +101,34 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
     }
   }
 
-  Widget _number(String key) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
-    child: TextFormField(
-      controller: _numbers[key],
-      decoration: InputDecoration(
-        labelText: clinicalLabel(key),
-        hintText: 'Leave blank if not provided',
-      ),
-      keyboardType: TextInputType.numberWithOptions(
-        decimal: key != 'age' && key != 'clinicalFrailtyScore',
-        signed: key == 'T-score',
-      ),
-      validator: (v) {
-        if (v == null || v.trim().isEmpty) return null;
-        final n = double.tryParse(v);
-        if (n == null || !n.isFinite) return 'Enter a valid number';
-        if ((key == 'age' || key == 'clinicalFrailtyScore') &&
-            int.tryParse(v) == null)
-          return 'Enter a whole number';
-        if (key != 'T-score' && n < 0) return 'Enter zero or a positive number';
-        return null;
-      },
-    ),
-  );
+  Future<void> _reviewAnswers() async {
+    if (!_form.currentState!.validate()) return;
+    setState(() => _error = null);
+    try {
+      final submitted = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute<bool>(
+          builder: (_) => PathwayReviewScreen(
+            repository: widget.repository,
+            id: _id,
+            revision: _revision,
+            input: _buildInput(),
+          ),
+        ),
+      );
+      if (submitted == true && mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted)
+        setState(
+          () => _error = e is AppException
+              ? e.message
+              : 'We could not prepare your review. Please try again.',
+        );
+    }
+  }
+
   Widget _boolean(String key, {String? label}) => Padding(
     padding: const EdgeInsets.only(bottom: 16),
     child: DropdownButtonFormField<String>(
@@ -220,7 +201,6 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
                     ),
                   ]),
                   _section('Health information', [
-                    _number('age'),
                     DropdownButtonFormField<String>(
                       initialValue: _answers['sex'] as String?,
                       decoration: const InputDecoration(
@@ -246,7 +226,6 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
                     const SizedBox(height: 16),
                     if (_answers['sex'] == 'female') ...[
                       _boolean('postmenopausal'),
-                      _number('yearSincePostmenopausal'),
                     ],
                   ]),
                   _section('Fracture history', [
@@ -269,39 +248,16 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
                         ])
                           DropdownMenuItem(
                             value: site,
-                            child: Text(
-                              site == 'vertebral'
-                                  ? 'Spine'
-                                  : site[0].toUpperCase() + site.substring(1),
-                            ),
+                            child: Text(fractureSiteText(site)),
                           ),
                       ],
                       onChanged: (v) =>
                           setState(() => _answers['fractureSite'] = v),
                     ),
                     const SizedBox(height: 16),
-                    _boolean('hipVertebralOrMultipleFracturesInLast24M'),
                   ]),
-                  _section('Bone health', [
-                    _boolean('testAvailable'),
-                    if (_answers['testAvailable'] == true) ...[
-                      _boolean('testWithinLast2Years'),
-                      _number('T-score'),
-                    ],
-                    _number('eGFR'),
-                    _number('vitaminDLevel'),
-                    const Text(
-                      'Use values from your clinical records. eGFR and creatinine clearance are different measurements. Do not substitute one for the other.',
-                    ),
-                  ]),
-                  _section('Care and current medicines', [
+                  _section('Living situation', [
                     _boolean('liveInResidentialCare'),
-                    _boolean('knownPoorMedicationAdherence'),
-                    _boolean('cognitiveImpairment'),
-                    _boolean('historyOfMiOrStroke'),
-                    _boolean('highRisk'),
-                    _number('clinicalFrailtyScore'),
-                    _number('lifeExpectancy'),
                   ]),
                   if (_error != null)
                     Padding(
@@ -319,13 +275,13 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
                     alignment: WrapAlignment.end,
                     children: [
                       OutlinedButton(
-                        onPressed: _saving ? null : () => _save(false),
+                        onPressed: _saving ? null : _saveDraft,
                         child: const Text('Save draft'),
                       ),
                       FilledButton(
-                        onPressed: _saving ? null : () => _save(true),
+                        onPressed: _saving ? null : _reviewAnswers,
                         child: Text(
-                          _saving ? 'Saving...' : 'Submit assessment',
+                          _saving ? 'Saving...' : 'Review answers',
                         ),
                       ),
                     ],
@@ -338,4 +294,33 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
       ),
     ),
   );
+
+  int? _derivedAge() {
+    final birth = widget.user.dateOfBirth;
+    if (birth == null) return null;
+    final now = DateTime.now();
+    return now.year -
+        birth.year -
+        ((now.month < birth.month ||
+                (now.month == birth.month && now.day < birth.day))
+            ? 1
+            : 0);
+  }
+
+  static const _clinicianOwnedFactKeys = {
+    'eGFR',
+    'clinicalFrailtyScore',
+    'lifeExpectancy',
+    'knownPoorMedicationAdherence',
+    'cognitiveImpairment',
+    'testAvailable',
+    'testWithinLast2Years',
+    'T-score',
+    'vitaminDLevel',
+    'hipVertebralOrMultipleFracturesInLast24M',
+    'highRisk',
+    'historyOfMiOrStroke',
+    'yearSincePostmenopausal',
+    'isRobustWoman',
+  };
 }

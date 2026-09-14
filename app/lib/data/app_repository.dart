@@ -1,6 +1,7 @@
 import '../models/app_user.dart';
 import '../models/clinical_case.dart';
 import '../models/clinical_input.dart';
+import '../models/pathway1_clinician_input.dart';
 import '../models/questionnaire.dart';
 
 class AppException implements Exception {
@@ -29,6 +30,11 @@ abstract class AppRepository {
     required int revision,
     required ClinicalInput input,
   });
+  Future<ClinicalCase> completePathway1ClinicianInput({
+    required ClinicalCase assessment,
+    required Pathway1ClinicianInput input,
+  });
+  Future<ClinicalCase> withdrawAssessment({required ClinicalCase assessment});
   Future<void> recordClinicianDecision({
     required ClinicalCase assessment,
     required ClinicalCaseStatus decision,

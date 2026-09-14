@@ -19,8 +19,8 @@ const labels: Record<string, string> = {
   DXA_DISAVAILABLE: 'Bone density test availability',
   T_SCORE: 'Bone density condition',
   RECENT_MAJOR_FRACTURES: 'Recent major fractures',
-  HIGH_RISK_WITHOUT_RECENT_MAJOR_FRACTURE: 'High risk without recent major fracture',
-  STANDARD_OPTIONS_WITHOUT_RECENT_MAJOR_FRACTURE: 'No recent major fracture or high-risk flag',
+  HIGH_RISK_WITHOUT_RECENT_MAJOR_FRACTURE: 'Very high fracture risk clinician confirmation',
+  STANDARD_OPTIONS_WITHOUT_RECENT_MAJOR_FRACTURE: 'Very high fracture risk not confirmed after no recent major fracture',
 };
 function keys(c: Condition): string[] {
   return 'fact' in c ? [c.fact] : [...new Set((c.all ?? c.any ?? []).flatMap(keys))];

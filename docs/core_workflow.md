@@ -4,30 +4,40 @@
 
 Flutter screens → AppRepository → SupabaseAppRepository → authenticated RPCs / Edge Function → PostgreSQL.
 
-MockAppRepository independently implements the same interface using synthetic, in-memory data. Its local development HTTP service imports the same TypeScript engine and JSON as the deployed Edge Function. It is not a persistence substitute and must never handle real patient data.
+MockAppRepository independently implements the same interface using synthetic, in-memory data. Its default evaluator is Dart-local so `flutter run -d chrome` can exercise the synthetic Pathway 1 prototype without Supabase, Node or localhost services. The HTTP ClinicalApiClient remains available only for explicit TypeScript rule-engine integration checks. Mock storage is not a persistence substitute and must never handle real patient data.
 
 The patient sends an assessment UUID, expected revision and structured input to save_assessment. Identity comes from auth.uid(), never the supplied patient name. Evaluation accepts only an assessment ID and revision; the Edge Function verifies the user, retrieves owned stored facts, runs the engine and persists through a service-role-only RPC. It returns no raw recommendation to the patient.
 
-Approved clinicians can review the shared unassigned queue; after a decision, the assessment belongs to that clinician's queue. This is the explicit initial care-access policy, not a multi-organisation tenancy model. A decision atomically records the reviewer, evaluation, revision, time and notes. A request for more information reopens the same assessment and appends immutable input/evaluation revisions. Approval requires a current actionable Pathway 1 evaluation. Only an approved decision tied to that current evaluation exposes actions to the patient.
+Approved clinicians can review the shared unassigned queue; after a decision, the assessment belongs to that clinician's queue. This is the explicit initial care-access policy, not a multi-organisation tenancy model. A decision atomically records the reviewer, evaluation, revision, time and notes. A request for more information is currently presented to the patient as clinician-visible notes and does not reopen unrestricted patient editing. Approval requires a current actionable Pathway 1 evaluation. Only an approved decision tied to that current evaluation exposes actions to the patient.
 
 ## Local synthetic demonstration
 
 Requires Node 24+ and Flutter 3.44+ / Dart 3.12+. From code:
 
 ```sh
+cd code
 npm ci
 npm test
-npm run dev
 ```
 
 In a second terminal, from app:
 
 ```sh
 flutter pub get
-flutter run -d chrome --dart-define=APP_MODE=mock
+flutter run -d chrome
 ```
 
-The development engine listens on localhost:8787. This default is intended for a browser on the same computer. Device/emulator loopback configuration is not included. Mock storage resets when the repository instance restarts.
+Debug builds default to APP_MODE=mock when APP_MODE is omitted. You can also set `--dart-define=APP_MODE=mock` explicitly for deterministic demonstrations. Mock development is self-contained: Flutter uses MockAppRepository with its local Dart evaluator and does not require Supabase, Node, or localhost:8787. Mock storage resets when the repository instance restarts.
+
+## Local HTTP rule-engine integration check
+
+The unauthenticated Node service remains available for explicit integration testing of the TypeScript rule engine through ClinicalApiClient. From code:
+
+```sh
+npm run dev
+```
+
+The development engine listens on localhost:8787. Tests or temporary harnesses can inject `ClinicalApiClient(Uri.parse('http://localhost:8787/evaluate')).evaluate` into MockAppRepository. This HTTP service is not the default mock dependency and must never be deployed.
 
 Synthetic accounts all use DemoPass123!: patient@example.test, treated@example.test, clinician@example.test, pending@example.test, rejected@example.test, admin@example.test. The first two own different drafts. The treated patient routes to Pathway 2. These accounts are not seeded into Supabase.
 
@@ -48,11 +58,11 @@ flutter run -d chrome --dart-define=APP_MODE=supabase \
   --dart-define=SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLIC_KEY
 ```
 
-APP_MODE has no implicit mock fallback. Supabase failures are shown as errors. Authentication state changes and foreground/profile refresh reset protected navigation. Backend roles and RLS guard every operation independently of UI state. MFA has a session-assurance boundary only; a challenge/enrolment UI is not implemented.
+APP_MODE=supabase has no implicit mock fallback. Supabase failures are shown as errors. Profile and release builds require APP_MODE to be set explicitly, so production cannot accidentally start with the mock repository. Authentication state changes and foreground/profile refresh reset protected navigation. Backend roles and RLS guard every operation independently of UI state. MFA has a session-assurance boundary only; a challenge/enrolment UI is not implemented.
 
 ## Data and clinical contract
 
-Five core tables are versioned with RLS: profiles, assessments, clinical_inputs, evaluations, clinician_decisions. Patient inputs preserve null/unknown values. ClinicalInput owns the Dart-to-rule field mapping. Dates of birth prefill age; eGFR is not converted to creatinine clearance. Input ownership and authorisation always use UUIDs.
+Five core tables are versioned with RLS: profiles, assessments, clinical_inputs, evaluations, clinician_decisions. Patient inputs preserve null/unknown values. ClinicalInput owns the Dart-to-rule field mapping. Patient profile date_of_birth is the source of truth for age; age is derived at the repository/database boundary and passed to the evaluator as an integer fact. eGFR is not converted to creatinine clearance. Input ownership and authorisation always use UUIDs.
 
 The existing JSON remains the clinical source, with only boolean typing and duplicate rule IDs corrected. Thresholds and medication actions were not clinically redefined. The engine stops only when a stopping rule matches. Relevant unknown/type-invalid input produces a missing-input result with no partial recommendation. Previous treatment routes to Pathway 2 without running Pathway 1; unknown treatment does not select either route.
 
@@ -76,8 +86,10 @@ flutter build web --dart-define=APP_MODE=mock
 
 Widget tests use mock repositories and fixtures generated by the engine; they do not prove production integration. The lockfile is reused from the repository's DB_setup branch, with the matching Supabase dependency constraint; fresh pub resolution remains required.
 
-Live acceptance requires separate patient and clinician browser sessions: patient signup/email verification → structured submission → stored input/evaluation → clinician approval by admin → approved clinician reads that same assessment/trace → requests more information → patient revises the same UUID → clinician reloads and approves → patient sees only current approved actions → restart/relogin preserves the result. Also test another patient, pending/rejected clinician, stale review, duplicate submit, invalid session, logout/back navigation, Pathway 2/manual review, withhold and follow-up. Inspect network/RLS responses, not only visible screens.
+Live acceptance requires separate patient and clinician browser sessions: patient signup/email verification → structured submission → stored patient input → clinician approval by admin → approved clinician enters Pathway 1 clinical facts → final evaluation persists → clinician reads that same assessment/trace → approves/withholds/requests more information/arranges follow-up → patient sees only patient-safe current outcomes and approved actions → restart/relogin preserves the result. Also test another patient, pending/rejected clinician, stale review, duplicate submit, invalid session, logout/back navigation, withdrawal before clinician review, Pathway 2/manual review, withhold and follow-up. Inspect network/RLS responses, not only visible screens.
 
 ## Verification limits for this delivery
 
-Local backend suite: 32 passing, zero failing (includes a database parent test). Native Dart/Flutter execution was blocked by sandbox denial of CPU-information access during VM startup. Therefore pub get, analyzer, Flutter tests, web build and rendered UI acceptance were not run. WASM Dart formatting/parser checks verify syntax only, not types or layout. The external Supabase implementation was unavailable: deployment, email delivery, hosted RLS and cross-session end-to-end acceptance remain blocked until an authorised project environment is available.
+Latest local verification before this correction: Flutter analyze reported no errors or warnings and only info-level lint issues; the full Flutter widget/workflow suite reported 38 passing tests; the focused Node Pathway 1 engine/Edge/database coverage reported 24 passing tests. Manual local mock E2E exercised patient submission, clinician clinical input, clinician review, patient-safe outcome display, withdrawal before clinician review and one-active-assessment behavior.
+
+Live Supabase deployment remains unverified in this repository workspace. Do not apply migrations to a shared project until an authorised operator reviews the existing schema, runs the forward migrations against a safe target, deploys the Edge Function, and repeats cross-session acceptance with real Supabase Auth/RLS/Edge gateway behavior.

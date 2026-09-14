@@ -3,14 +3,17 @@ class ReasoningTraceEntry {
     required this.ruleId,
     required this.matched,
     required this.reason,
+    this.input = const {},
   });
   final String ruleId, reason;
   final bool? matched;
+  final Map<String, Object?> input;
   factory ReasoningTraceEntry.fromJson(Map<String, dynamic> j) =>
       ReasoningTraceEntry(
         ruleId: j['rule_id'] as String,
         matched: j['matched'] as bool?,
         reason: j['reason'] as String,
+        input: Map<String, Object?>.from((j['input'] as Map?) ?? const {}),
       );
 }
 

@@ -1,4 +1,5 @@
 import 'clinical_input.dart';
+import 'pathway1_clinician_input.dart';
 import 'pathway_evaluation.dart';
 
 class ClinicalCase {
@@ -15,6 +16,7 @@ class ClinicalCase {
     this.submittedAt,
     this.evaluation,
     this.evaluationId,
+    this.clinicianInput,
     this.decisionNotes,
     this.approvedActions = const [],
   });
@@ -27,13 +29,19 @@ class ClinicalCase {
   final ClinicalPathway? pathway;
   final String? routingReason, evaluationId, decisionNotes;
   final PathwayEvaluation? evaluation;
+  final Pathway1ClinicianInput? clinicianInput;
   final List<PathwayAction> approvedActions;
-  bool get canEdit =>
-      status == ClinicalCaseStatus.draft ||
-      status == ClinicalCaseStatus.needsMoreInfo;
+  bool get canEdit => status == ClinicalCaseStatus.draft;
+  bool get needsClinicianInput =>
+      status == ClinicalCaseStatus.clinicianInputRequired;
+  bool get canWithdrawSubmission =>
+      status == ClinicalCaseStatus.clinicianInputRequired &&
+      clinicianInput == null &&
+      evaluation == null;
   bool get canReview =>
       status == ClinicalCaseStatus.awaitingReview ||
       status == ClinicalCaseStatus.manualReview;
+  bool get canOpenForClinician => needsClinicianInput || canReview;
   factory ClinicalCase.fromJson(Map<String, dynamic> j) => ClinicalCase(
     id: j['id'] as String,
     patientId: j['patient_id'] as String,
@@ -52,6 +60,7 @@ class ClinicalCase {
         : null,
     routingReason: j['routing_reason'] as String?,
     evaluationId: j['evaluation_id'] as String?,
+    clinicianInput: _clinicianInputFromJson(j['clinician_facts']),
     decisionNotes: j['decision_notes'] as String?,
     evaluation: j['evaluation'] == null
         ? null
@@ -62,12 +71,23 @@ class ClinicalCase {
         .map((a) => PathwayAction.fromJson(Map<String, dynamic>.from(a as Map)))
         .toList(),
   );
+
+  static Pathway1ClinicianInput? _clinicianInputFromJson(Object? value) {
+    if (value == null) return null;
+    final facts = Map<String, dynamic>.from(value as Map);
+    if (facts.isEmpty) return null;
+    return Pathway1ClinicianInput.fromJson(facts);
+  }
 }
 
 enum ClinicalPathway { pathway1, pathway2 }
 
 enum ClinicalCaseStatus {
   draft('draft', 'Draft'),
+  clinicianInputRequired(
+    'clinician_input_required',
+    'Waiting for clinician input',
+  ),
   awaitingReview('awaiting_review', 'Waiting for clinician review'),
   manualReview('manual_review', 'Further review needed'),
   approved('approved', 'Reviewed and approved'),

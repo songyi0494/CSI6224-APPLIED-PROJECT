@@ -43,6 +43,7 @@ export interface PathwayDocument {
         id: string;
         title: string;
     };
+    requiredFields: string[];
     root: EntryConditionRoot;
     conditions: Condition;
     investigations?: {
@@ -57,9 +58,30 @@ export interface PathwayDocument {
     rules: Rule[];
 }
 
+export interface TraceCondition {
+    fact: string;
+    value: unknown;
+    operator: string;
+    expected: unknown;
+    result: boolean;
+}
+
+export interface TraceEntry {
+    ruleId: string;
+    matched: boolean;
+    conditions: TraceCondition[];
+    actionsTriggered: Action[];
+}
+
+export interface EvaluationError {
+    code: "MISSING_REQUIRED_FIELDS";
+    fields: string[];
+}
+
 export interface EvaluationResult {
     pathway: string;
     decision: 'not_applicable' | 'action_taken' | 'no_action';
     actions: Action[];
-    trace: string[];
+    trace: TraceEntry[];
+    error?: EvaluationError;
 }

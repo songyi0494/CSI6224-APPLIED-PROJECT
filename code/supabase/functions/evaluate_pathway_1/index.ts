@@ -4,6 +4,7 @@ import type {
     EvaluationResult,
     Action,
     SimpleCondition,
+    TraceEntry,
 } from "./types.ts";
 
 import pathwayDoc_1 from "./pathway_1.json" with { type: "json" };
@@ -26,6 +27,17 @@ function isSimpleCondition(
     cond: Condition
 ): cond is SimpleCondition {
     return "fact" in cond && "operator" in cond;
+}
+
+function getMissingRequiredFields(
+    requiredFields: string[],
+    facts: Record<string, unknown>
+): string[] {
+    return requiredFields.filter(
+        (field) =>
+            facts[field] === undefined ||
+            facts[field] === null
+    );
 }
 
 function evaluateCondition(
@@ -57,34 +69,67 @@ function evaluatePathway(
     doc: PathwayDocument,
     facts: Record<string, unknown>
 ): EvaluationResult {
-    const { metadata, root, conditions, rules } = doc;
+    const { metadata, requiredFields, root, conditions, rules } = doc;
 
+    const missingFields = getMissingRequiredFields(doc.requiredFields, facts);
+    if (missingFields.length > 0) {
+        return {
+            pathway: metadata.id,
+            decision: "not_applicable",
+            actions: [],
+            trace: [],
+            error: {
+                code: "MISSING_REQUIRED_FIELDS",
+                fields: missingFields
+            }
+        };
+    }
+
+    const entryOK = evaluateCondition(conditions, facts);
     if (root.type !== "entryCondition") {
         throw new Error(`Invalid root: ${root}`);
     }
 
-    const entryOK = evaluateCondition(conditions, facts);
     if (!entryOK) {
         return {
             pathway: metadata.id,
             decision: "not_applicable",
             actions: [],
-            trace: ["ENTRY_CONDITION_FAILED"]
+            trace: [
+                {
+                    ruleId: "ENTRY_CONDITON",
+                    matched: false,
+                    conditions: [],
+                    actionsTriggered: [],
+                }
+            ]
         };
     }
 
     const actions: Action[] = [];
-    const trace: string[] = ["ENTRY_CONDITION_PASSED"];
+    const trace: TraceEntry[] = [];
+
+    trace.push({
+        ruleId: "ENTRY_CONDITON",
+        matched: true,
+        conditions: [],
+        actionsTriggered: [],
+    })
 
     for (const rule of rules) {
-        trace.push(rule.id);
         const match = evaluateCondition(rule.when, facts);
+        trace.push({
+            ruleId: rule.id,
+            matched: match,
+            conditions: [],
+            actionsTriggered: match ? (rule.then || []) : [],
+        });
         if (match) {
             actions.push(...(rule.then || []));
-        }
-        if (rule.stopPathway) {
-            trace.push("STOP_PATHWAY");
+
+            if (rule.stopPathway) {
             break;
+            }
         }
     }
 

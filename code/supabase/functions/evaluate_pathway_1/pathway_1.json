@@ -3,17 +3,37 @@
         "id": "PATHWAY1",
         "title": "Treatment naive patients - General"
     },
+    "requiredFields": [
+        "minimalTraumaFracture",
+        "sex",
+        "postmenopausal",
+        "age",
+        "fractureSite",
+        "vitaminDLevel",
+        "dietaryDairyServing",
+        "hypocalaemia",
+        "olderPeople",
+        "yearSincePostmenopausal",
+        "isRobustWoman",
+        "eGFR",
+        "osteoporosisTreatmentStatus",
+        "liveInResidentialCare",
+        "clinicalFrailtyScore",
+        "lifeExpectancy",
+        "knownPoorMedicationAdherence",
+        "cognitiveImpairment",
+        "testAvailable",
+        "testWithinLast2Years",
+        "tScore",
+        "hipVertebralOrMultipleFracturesInLast24M",
+        "highRisk"
+    ],
     "root": {
         "type": "entryCondition",
         "conditions": "REF:conditions"
     },
     "conditions": {
         "all": [
-            {
-                "fact": "osteoporosisTreatmentStatus",
-                "operator": "equals",
-                "value": false
-            },
             {
                 "fact": "minimalTraumaFracture",
                 "operator": "equals",
@@ -31,7 +51,7 @@
                             {
                                 "fact": "postmenopausal",
                                 "operator": "equals",
-                                "value": "true"
+                                "value": true
                             }
                         ]
                     },
@@ -423,7 +443,7 @@
         {
             "id": "T_SCORE",
             "when": {
-                "fact": "T-score",
+                "fact": "tScore",
                 "operator": "greaterThan",
                 "value": -2.5
             },

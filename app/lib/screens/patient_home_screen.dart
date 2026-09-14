@@ -1,193 +1,350 @@
 import 'package:flutter/material.dart';
-
 import '../data/app_repository.dart';
 import '../models/app_user.dart';
-import '../models/approved_recommendation.dart';
-import '../models/questionnaire.dart';
-import '../utils/display_labels.dart';
+import '../models/clinical_case.dart';
+import '../utils/clinical_labels.dart';
+import '../utils/patient_decision_presentation.dart';
 import '../widgets/app_scaffold.dart';
-import '../widgets/empty_state.dart';
-import 'questionnaire_response_screen.dart';
+import '../widgets/async_panel.dart';
+import 'pathway_form_screen.dart';
 
-class PatientHomeScreen extends StatefulWidget {
+class PatientHomeScreen extends StatelessWidget {
   const PatientHomeScreen({
     required this.user,
     required this.repository,
     required this.onSignOut,
     super.key,
   });
-
   final AppUser user;
   final AppRepository repository;
   final VoidCallback onSignOut;
 
-  @override
-  State<PatientHomeScreen> createState() => _PatientHomeScreenState();
-}
-
-class _PatientHomeScreenState extends State<PatientHomeScreen> {
-  int _refreshKey = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Patient home',
-      user: widget.user,
-      onSignOut: widget.onSignOut,
-      child: FutureBuilder<List<Object>>(
-        key: ValueKey(_refreshKey),
-        future: Future.wait([
-          widget.repository.fetchQuestionnaires(),
-          widget.repository.fetchApprovedRecommendations(
-            patientName: widget.user.displayName,
-          ),
-        ]),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final questionnaires = (snapshot.data![0] as List<Questionnaire>)
-              .where((item) => item.status == QuestionnaireStatus.published)
-              .toList();
-          final recommendations =
-              snapshot.data![1] as List<ApprovedRecommendation>;
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth > 760;
-              final children = [
-                _QuestionnairePanel(
-                  questionnaires: questionnaires,
-                  onStart: _openQuestionnaire,
-                ),
-                _RecommendationPanel(recommendations: recommendations),
-              ];
-              if (wide) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: children.first),
-                    const SizedBox(width: 16),
-                    Expanded(child: children.last),
-                  ],
-                );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final child in children) ...[
-                    child,
-                    const SizedBox(height: 16),
-                  ],
-                ],
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _openQuestionnaire(Questionnaire questionnaire) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => QuestionnaireResponseScreen(
-          questionnaire: questionnaire,
-          repository: widget.repository,
-          patientName: widget.user.displayName,
+  Future<void> _withdrawAndEdit(
+    BuildContext context,
+    ClinicalCase assessment,
+    VoidCallback reload,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Withdraw submission?'),
+        content: const Text(
+          'Your assessment will return to draft so you can make changes. You will need to submit it again for clinician review.',
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Withdraw and edit'),
+          ),
+        ],
       ),
     );
-    if (mounted) {
-      setState(() => _refreshKey++);
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await repository.withdrawAssessment(assessment: assessment);
+      if (!context.mounted) return;
+      reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Your assessment is back in draft. You can edit it now.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e is AppException
+                ? e.message
+                : 'This assessment can no longer be edited directly.',
+          ),
+        ),
+      );
     }
   }
-}
-
-class _QuestionnairePanel extends StatelessWidget {
-  const _QuestionnairePanel({
-    required this.questionnaires,
-    required this.onStart,
-  });
-
-  final List<Questionnaire> questionnaires;
-  final ValueChanged<Questionnaire> onStart;
 
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => AppScaffold(
+    title: 'Patient Dashboard',
+    user: user,
+    onSignOut: onSignOut,
+    child: AsyncPanel<List<ClinicalCase>>(
+      load: repository.fetchClinicalCases,
+      builder: (items, reload) {
+        final activeAssessment = _activeAssessment(items);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Available questionnaires',
+              'OsteoCare Pathway',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Your health information, assessment status and reviewed recommendations.',
+            ),
+            if (repository.isMock)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Demo mode — synthetic records. Changes last for this app session.',
+                ),
+              ),
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                FilledButton.icon(
+                  icon: Icon(
+                    activeAssessment == null ? Icons.add : Icons.edit_outlined,
+                  ),
+                  label: Text(
+                    activeAssessment == null
+                        ? 'Start assessment'
+                        : activeAssessment.canEdit
+                        ? 'Continue current assessment'
+                        : 'Assessment in progress',
+                  ),
+                  onPressed:
+                      activeAssessment != null && !activeAssessment.canEdit
+                      ? null
+                      : () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (_) => PathwayFormScreen(
+                                repository: repository,
+                                user: user,
+                                assessment: activeAssessment,
+                              ),
+                            ),
+                          );
+                          reload();
+                        },
+                ),
+                OutlinedButton(onPressed: reload, child: const Text('Refresh')),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'My assessments',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
-            if (questionnaires.isEmpty)
-              const EmptyState(message: 'No questionnaires are available.')
-            else
-              for (final item in questionnaires)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.assignment_outlined),
-                  title: Text(item.title),
-                  subtitle: Text('${item.questions.length} questions'),
-                  trailing: FilledButton(
-                    onPressed: () => onStart(item),
-                    child: const Text('Start'),
-                  ),
+            if (items.isEmpty)
+              const Text(
+                'No assessments yet. Your assessments will appear here after they are created.',
+              ),
+            for (final a in items)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Builder(
+                  builder: (context) {
+                    final presentation = PatientDecisionPresentation.fromCase(
+                      a,
+                    );
+                    final notes = a.decisionNotes?.trim();
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Text(
+                          a.submittedAt == null
+                              ? 'Your assessment'
+                              : 'Submitted ${formatDate(a.submittedAt!)}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Chip(label: Text(a.status.label)),
+                        if (a.status == ClinicalCaseStatus.manualReview)
+                          const Text(
+                            'A clinician will review your health and treatment information before the next step.',
+                          ),
+                        if (a.status ==
+                            ClinicalCaseStatus.clinicianInputRequired)
+                          const Text(
+                            'Submitted — waiting for clinician clinical input.',
+                          ),
+                            if (presentation != null) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                presentation.title,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(presentation.description),
+                              if (presentation.showRecommendation &&
+                                  a.approvedActions.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Reviewed recommendation',
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                                for (final action in a.approvedActions)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: Text(action.description),
+                                  ),
+                              ],
+                              if (notes != null && notes.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  presentation.messageLabel,
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                                Text(notes),
+                              ],
+                              if (a.status == ClinicalCaseStatus.needsMoreInfo)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 12),
+                                  child: Text(
+                                    'Please follow the instructions from your clinician before the assessment can be completed.',
+                                  ),
+                                ),
+                              if (a.status ==
+                                  ClinicalCaseStatus.followUpArranged)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 12),
+                                  child: Text(
+                                    'Please follow the instructions from your clinician for the next step.',
+                                  ),
+                                ),
+                            ],
+                        if (presentation == null &&
+                            a.decisionNotes != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            a.status == ClinicalCaseStatus.needsMoreInfo
+                                ? 'Action needed'
+                                : 'Message from your clinician',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          Text(a.decisionNotes!),
+                        ],
+                            if (a.canEdit &&
+                                (presentation == null ||
+                                    presentation.allowAssessmentEdit)) ...[
+                          const SizedBox(height: 12),
+                          FilledButton(
+                            onPressed: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute<void>(
+                                  builder: (_) => PathwayFormScreen(
+                                    repository: repository,
+                                    user: user,
+                                    assessment: a,
+                                  ),
+                                ),
+                              );
+                              reload();
+                            },
+                            child: Text(
+                              a.status == ClinicalCaseStatus.needsMoreInfo
+                                  ? 'Provide more information'
+                                  : 'Continue assessment',
+                            ),
+                          ),
+                        ],
+                        if (a.canWithdrawSubmission) ...[
+                          const SizedBox(height: 12),
+                          FilledButton(
+                            onPressed: () => _withdrawAndEdit(
+                              context,
+                              a,
+                              reload,
+                            ),
+                            child: const Text('Withdraw and edit'),
+                          ),
+                        ],
+                            if (presentation?.showRecommendation == true) ...[
+                          const SizedBox(height: 12),
+                          OutlinedButton(
+                            onPressed: () => showDialog<void>(
+                              context: context,
+                              builder: (_) => AlertDialog(
+                                title: const Text('Reviewed recommendation'),
+                                content: SingleChildScrollView(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Your clinician has reviewed your assessment.',
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'Recommendation',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleSmall,
+                                      ),
+                                      for (final action in a.approvedActions)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 12,
+                                          ),
+                                          child: Text(action.description),
+                                        ),
+                                      if (notes != null &&
+                                          notes.isNotEmpty) ...[
+                                        Text(
+                                          presentation!.messageLabel,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleSmall,
+                                        ),
+                                        Text(notes),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Close'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            child: const Text('View recommendation'),
+                          ),
+                        ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
+              ),
           ],
-        ),
-      ),
-    );
-  }
-}
+        );
+      },
+    ),
+  );
 
-class _RecommendationPanel extends StatelessWidget {
-  const _RecommendationPanel({required this.recommendations});
-
-  final List<ApprovedRecommendation> recommendations;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Approved recommendations',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            if (recommendations.isEmpty)
-              const EmptyState(
-                message: 'Approved recommendations will appear here.',
-              )
-            else
-              for (final recommendation in recommendations)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.verified_outlined),
-                  title: Text(recommendation.summary),
-                  subtitle: Text(
-                    '${clinicalPathwayLabel(recommendation.pathway)} approved '
-                    '${_formatDate(recommendation.approvedAt)}',
-                  ),
-                ),
-          ],
-        ),
-      ),
-    );
+  static ClinicalCase? _activeAssessment(List<ClinicalCase> items) {
+    for (final item in items) {
+      if (_activeStatuses.contains(item.status)) return item;
+    }
+    return null;
   }
 
-  String _formatDate(DateTime value) {
-    final day = value.day.toString().padLeft(2, '0');
-    final month = value.month.toString().padLeft(2, '0');
-    return '$day/$month/${value.year}';
-  }
+  static const _activeStatuses = {
+    ClinicalCaseStatus.draft,
+    ClinicalCaseStatus.clinicianInputRequired,
+    ClinicalCaseStatus.awaitingReview,
+    ClinicalCaseStatus.manualReview,
+    ClinicalCaseStatus.needsMoreInfo,
+  };
 }

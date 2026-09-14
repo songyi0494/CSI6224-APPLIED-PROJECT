@@ -1,361 +1,287 @@
 import 'package:flutter/material.dart';
-
+import '../utils/new_id.dart';
 import '../data/app_repository.dart';
+import '../models/app_user.dart';
 import '../models/clinical_case.dart';
-import '../models/pathway_evaluation.dart';
+import '../models/clinical_input.dart';
+import '../utils/clinical_labels.dart';
+import 'pathway_review_screen.dart';
 
 class PathwayFormScreen extends StatefulWidget {
   const PathwayFormScreen({
     required this.repository,
-    required this.onEvaluationReady,
-    this.existingCaseId,
+    required this.user,
+    this.assessment,
     super.key,
   });
-
   final AppRepository repository;
-  final String? existingCaseId;
-  final void Function(ClinicalCase clinicalCase, PathwayEvaluation evaluation)
-      onEvaluationReady;
-
+  final AppUser user;
+  final ClinicalCase? assessment;
   @override
   State<PathwayFormScreen> createState() => _PathwayFormScreenState();
 }
 
 class _PathwayFormScreenState extends State<PathwayFormScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _patientNameController = TextEditingController();
-  final _ageController = TextEditingController();
-  final _egfrController = TextEditingController();
-  final _frailtyController = TextEditingController();
-  final _lifeExpectancyController = TextEditingController();
-  final _tScoreController = TextEditingController();
-  final _vitaminDController = TextEditingController();
-
-  ClinicalPathway _pathway = ClinicalPathway.pathway1;
-  String? _activeCaseId;
-  String _sex = 'female';
-  String _fractureSite = 'hip';
-  bool _postmenopausal = true;
-  bool _minimalTraumaFracture = true;
-  bool _onOsteoporosisTreatment = false;
-  bool _residentialCare = false;
-  bool _poorAdherence = false;
-  bool _cognitiveImpairment = false;
-  bool _dxaAvailable = true;
-  bool _dxaWithinTwoYears = true;
-  bool _majorRecentFracture = true;
-  bool _highRisk = true;
-  bool _historyOfMiOrStroke = false;
-  bool _loadingExisting = false;
-  bool _loading = false;
-
+  final _form = GlobalKey<FormState>();
+  final Map<String, TextEditingController> _numbers = {};
+  final Map<String, Object?> _answers = {};
+  late String _id;
+  late int _revision;
+  bool _saving = false;
+  String? _error;
+  static const _numeric = <String>[];
   @override
   void initState() {
     super.initState();
-    _activeCaseId = widget.existingCaseId;
-    if (widget.existingCaseId != null) {
-      _loadExistingCase(widget.existingCaseId!);
+    _id = widget.assessment?.id ?? newId();
+    _revision = widget.assessment?.revision ?? 0;
+    _answers.addAll(widget.assessment?.input.toFacts() ?? {});
+    if (widget.assessment == null) {
+      _answers['sex'] = widget.user.sexAtBirth;
+    }
+    for (final key in _numeric) {
+      _numbers[key] = TextEditingController(
+        text: _answers[key]?.toString() ?? '',
+      );
     }
   }
 
   @override
   void dispose() {
-    _patientNameController.dispose();
-    _ageController.dispose();
-    _egfrController.dispose();
-    _frailtyController.dispose();
-    _lifeExpectancyController.dispose();
-    _tScoreController.dispose();
-    _vitaminDController.dispose();
+    for (final c in _numbers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
+  ClinicalInput _buildInput() {
+    final facts = Map<String, Object?>.from(_answers);
+    for (final key in _numeric) {
+      final raw = _numbers[key]!.text.trim();
+      facts[key] = raw.isEmpty
+          ? null
+          : (key == 'clinicalFrailtyScore'
+                ? int.parse(raw)
+                : double.parse(raw));
+    }
+    facts['age'] = _derivedAge();
+    for (final key in _clinicianOwnedFactKeys) {
+      facts.remove(key);
+    }
+    return ClinicalInput.fromFacts(facts);
+  }
+
+  Future<void> _saveDraft() async {
+    if (!_form.currentState!.validate()) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final result = await widget.repository.saveAssessment(
+        id: _id,
+        revision: _revision,
+        input: _buildInput(),
+      );
+      _revision = result.revision;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Assessment saved.')),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted)
+        setState(
+          () => _error = e is AppException
+              ? e.message
+              : 'We could not save your assessment. Please try again.',
+        );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _reviewAnswers() async {
+    if (!_form.currentState!.validate()) return;
+    setState(() => _error = null);
+    try {
+      final submitted = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute<bool>(
+          builder: (_) => PathwayReviewScreen(
+            repository: widget.repository,
+            id: _id,
+            revision: _revision,
+            input: _buildInput(),
+          ),
+        ),
+      );
+      if (submitted == true && mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted)
+        setState(
+          () => _error = e is AppException
+              ? e.message
+              : 'We could not prepare your review. Please try again.',
+        );
+    }
+  }
+
+  Widget _boolean(String key, {String? label}) => Padding(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: DropdownButtonFormField<String>(
+      initialValue: _answers[key] == null
+          ? 'unknown'
+          : _answers[key] == true
+          ? 'yes'
+          : 'no',
+      decoration: InputDecoration(labelText: label ?? clinicalLabel(key)),
+      isExpanded: true,
+      items: const [
+        DropdownMenuItem(
+          value: 'unknown',
+          child: Text('Not sure / not provided'),
+        ),
+        DropdownMenuItem(value: 'yes', child: Text('Yes')),
+        DropdownMenuItem(value: 'no', child: Text('No')),
+      ],
+      onChanged: (v) => setState(
+        () => _answers[key] = v == 'yes'
+            ? true
+            : v == 'no'
+            ? false
+            : null,
+      ),
+    ),
+  );
+  Widget _section(String title, List<Widget> children) => Padding(
+    padding: const EdgeInsets.only(bottom: 20),
+    child: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 20),
+            ...children,
+          ],
+        ),
+      ),
+    ),
+  );
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Pathway clinical input')),
-      body: _loadingExisting
-          ? const Center(child: CircularProgressIndicator())
-          : Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(20),
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Your assessment')),
+    body: Form(
+      key: _form,
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Patient and pathway',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _patientNameController,
-                            decoration: const InputDecoration(
-                              labelText: 'Patient name',
-                            ),
-                            validator: _required,
-                          ),
-                          const SizedBox(height: 12),
-                          SegmentedButton<ClinicalPathway>(
-                            segments: const [
-                              ButtonSegment(
-                                value: ClinicalPathway.pathway1,
-                                label: Text('Pathway 1'),
-                              ),
-                              ButtonSegment(
-                                value: ClinicalPathway.pathway2,
-                                label: Text('Pathway 2'),
-                              ),
-                            ],
-                            selected: {_pathway},
-                            onSelectionChanged: (value) => setState(() {
-                              _pathway = value.first;
-                              _onOsteoporosisTreatment =
-                                  _pathway == ClinicalPathway.pathway2;
-                            }),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Required clinical facts',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 16),
-                          _twoColumns(
-                            TextFormField(
-                              controller: _ageController,
-                              decoration:
-                                  const InputDecoration(labelText: 'Age'),
-                              keyboardType: TextInputType.number,
-                              validator: _numberRequired,
-                            ),
-                            DropdownButtonFormField<String>(
-                              initialValue: _sex,
-                              decoration:
-                                  const InputDecoration(labelText: 'Sex'),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'female',
-                                  child: Text('Female'),
-                                ),
-                                DropdownMenuItem(
-                                    value: 'male', child: Text('Male')),
-                              ],
-                              onChanged: (value) =>
-                                  setState(() => _sex = value ?? _sex),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            initialValue: _fractureSite,
-                            decoration: const InputDecoration(
-                              labelText: 'Fracture site',
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                  value: 'hip', child: Text('Hip')),
-                              DropdownMenuItem(
-                                value: 'vertebral',
-                                child: Text('Vertebral'),
-                              ),
-                              DropdownMenuItem(
-                                  value: 'wrist', child: Text('Wrist')),
-                              DropdownMenuItem(
-                                value: 'humerus',
-                                child: Text('Humerus'),
-                              ),
-                              DropdownMenuItem(
-                                  value: 'hand', child: Text('Hand')),
-                              DropdownMenuItem(
-                                  value: 'foot', child: Text('Foot')),
-                              DropdownMenuItem(
-                                  value: 'face', child: Text('Face')),
-                              DropdownMenuItem(
-                                  value: 'ankle', child: Text('Ankle')),
-                            ],
-                            onChanged: (value) => setState(
-                              () => _fractureSite = value ?? _fractureSite,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _SwitchRow(
-                            label: 'Minimal trauma fracture',
-                            value: _minimalTraumaFracture,
-                            onChanged: (value) =>
-                                setState(() => _minimalTraumaFracture = value),
-                          ),
-                          _SwitchRow(
-                            label:
-                                'Currently or previously on osteoporosis treatment',
-                            value: _onOsteoporosisTreatment,
-                            subtitle:
-                                'Set automatically from the selected pathway.',
-                            onChanged: null,
-                          ),
-                          _SwitchRow(
-                            label: 'Postmenopausal',
-                            value: _postmenopausal,
-                            onChanged: (value) =>
-                                setState(() => _postmenopausal = value),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Investigations and risk flags',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 16),
-                          _twoColumns(
-                            TextFormField(
-                              controller: _egfrController,
-                              decoration:
-                                  const InputDecoration(labelText: 'eGFR'),
-                              keyboardType: TextInputType.number,
-                              validator: _numberRequired,
-                            ),
-                            TextFormField(
-                              controller: _tScoreController,
-                              decoration: const InputDecoration(
-                                labelText: 'Lowest T-score',
-                              ),
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                decimal: true,
-                                signed: true,
-                              ),
-                              validator: _numberRequired,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _vitaminDController,
-                            decoration: const InputDecoration(
-                              labelText: 'Vitamin D level',
-                            ),
-                            keyboardType: TextInputType.number,
-                            validator: _numberRequired,
-                          ),
-                          const SizedBox(height: 12),
-                          _twoColumns(
-                            TextFormField(
-                              controller: _frailtyController,
-                              decoration: const InputDecoration(
-                                labelText: 'Clinical frailty score',
-                              ),
-                              keyboardType: TextInputType.number,
-                              validator: _numberRequired,
-                            ),
-                            TextFormField(
-                              controller: _lifeExpectancyController,
-                              decoration: const InputDecoration(
-                                labelText: 'Life expectancy in years',
-                              ),
-                              keyboardType: TextInputType.number,
-                              validator: _numberRequired,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _SwitchRow(
-                            label: 'Lives in residential aged care',
-                            value: _residentialCare,
-                            onChanged: (value) =>
-                                setState(() => _residentialCare = value),
-                          ),
-                          _SwitchRow(
-                            label: 'Known poor medication adherence',
-                            value: _poorAdherence,
-                            onChanged: (value) =>
-                                setState(() => _poorAdherence = value),
-                          ),
-                          _SwitchRow(
-                            label: 'Cognitive impairment',
-                            value: _cognitiveImpairment,
-                            onChanged: (value) =>
-                                setState(() => _cognitiveImpairment = value),
-                          ),
-                          _SwitchRow(
-                            label: 'BMD DXA available',
-                            value: _dxaAvailable,
-                            onChanged: (value) =>
-                                setState(() => _dxaAvailable = value),
-                          ),
-                          _SwitchRow(
-                            label: 'DXA completed within last 2 years',
-                            value: _dxaWithinTwoYears,
-                            onChanged: _dxaAvailable
-                                ? (value) =>
-                                    setState(() => _dxaWithinTwoYears = value)
-                                : null,
-                          ),
-                          _SwitchRow(
-                            label:
-                                'Hip, vertebral, or 2+ fractures in last 24 months',
-                            value: _majorRecentFracture,
-                            onChanged: (value) =>
-                                setState(() => _majorRecentFracture = value),
-                          ),
-                          _SwitchRow(
-                            label: 'Very high fracture risk',
-                            value: _highRisk,
-                            onChanged: (value) =>
-                                setState(() => _highRisk = value),
-                          ),
-                          _SwitchRow(
-                            label: 'History of myocardial infarction or stroke',
-                            value: _historyOfMiOrStroke,
-                            onChanged: (value) =>
-                                setState(() => _historyOfMiOrStroke = value),
-                          ),
-                        ],
-                      ),
-                    ),
+                  const Text(
+                    'Tell us what you know. Leave information blank if you do not have it. Your clinician can ask for more information.',
                   ),
                   const SizedBox(height: 20),
+                  if (widget.assessment?.decisionNotes != null)
+                    _section('Information requested', [
+                      Text(widget.assessment!.decisionNotes!),
+                    ]),
+                  _section('Treatment history', [
+                    _boolean(
+                      'osteoporosisTreatmentStatus',
+                      label: 'Have you ever taken medicine for osteoporosis?',
+                    ),
+                  ]),
+                  _section('Health information', [
+                    DropdownButtonFormField<String>(
+                      initialValue: _answers['sex'] as String?,
+                      decoration: const InputDecoration(
+                        labelText: 'Sex at birth',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'female',
+                          child: Text('Female'),
+                        ),
+                        DropdownMenuItem(value: 'male', child: Text('Male')),
+                        DropdownMenuItem(
+                          value: 'other',
+                          child: Text('Another recorded sex'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'not_provided',
+                          child: Text('Prefer not to say'),
+                        ),
+                      ],
+                      onChanged: (v) => setState(() => _answers['sex'] = v),
+                    ),
+                    const SizedBox(height: 16),
+                    if (_answers['sex'] == 'female') ...[
+                      _boolean('postmenopausal'),
+                    ],
+                  ]),
+                  _section('Fracture history', [
+                    _boolean('minimalTraumaFracture'),
+                    DropdownButtonFormField<String>(
+                      initialValue: _answers['fractureSite'] as String?,
+                      decoration: const InputDecoration(
+                        labelText: 'Fracture site',
+                      ),
+                      items: [
+                        for (final site in [
+                          'hip',
+                          'vertebral',
+                          'wrist',
+                          'humerus',
+                          'hand',
+                          'foot',
+                          'face',
+                          'ankle',
+                        ])
+                          DropdownMenuItem(
+                            value: site,
+                            child: Text(fractureSiteText(site)),
+                          ),
+                      ],
+                      onChanged: (v) =>
+                          setState(() => _answers['fractureSite'] = v),
+                    ),
+                    const SizedBox(height: 16),
+                  ]),
+                  _section('Living situation', [
+                    _boolean('liveInResidentialCare'),
+                  ]),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Text(
+                        _error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ),
                   Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
+                    spacing: 12,
+                    runSpacing: 12,
                     alignment: WrapAlignment.end,
                     children: [
-                      OutlinedButton.icon(
-                        onPressed: _loading ? null : _saveDraft,
-                        icon: const Icon(Icons.save_outlined),
-                        label: const Text('Save draft'),
+                      OutlinedButton(
+                        onPressed: _saving ? null : _saveDraft,
+                        child: const Text('Save draft'),
                       ),
-                      FilledButton.icon(
-                        onPressed: _loading ? null : _evaluate,
-                        icon: _loading
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.rule),
-                        label: Text(
-                          _loading ? 'Evaluating' : 'Evaluate pathway',
+                      FilledButton(
+                        onPressed: _saving ? null : _reviewAnswers,
+                        child: Text(
+                          _saving ? 'Saving...' : 'Review answers',
                         ),
                       ),
                     ],
@@ -363,177 +289,38 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
                 ],
               ),
             ),
-    );
+          ),
+        ],
+      ),
+    ),
+  );
+
+  int? _derivedAge() {
+    final birth = widget.user.dateOfBirth;
+    if (birth == null) return null;
+    final now = DateTime.now();
+    return now.year -
+        birth.year -
+        ((now.month < birth.month ||
+                (now.month == birth.month && now.day < birth.day))
+            ? 1
+            : 0);
   }
 
-  Widget _twoColumns(Widget first, Widget second) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 620) {
-          return Column(children: [first, const SizedBox(height: 12), second]);
-        }
-        return Row(
-          children: [
-            Expanded(child: first),
-            const SizedBox(width: 12),
-            Expanded(child: second),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _evaluate() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-    setState(() => _loading = true);
-    final saved = await widget.repository.saveClinicalCase(
-      _buildClinicalCase(ClinicalCaseStatus.evaluated),
-    );
-    final evaluation = await widget.repository.evaluatePathway(saved);
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _loading = false;
-      _activeCaseId = saved.id;
-    });
-    widget.onEvaluationReady(saved, evaluation);
-  }
-
-  Future<void> _saveDraft() async {
-    if (_patientNameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a patient name before saving.')),
-      );
-      return;
-    }
-    setState(() => _loading = true);
-    final saved = await widget.repository.saveClinicalCase(
-      _buildClinicalCase(ClinicalCaseStatus.draft),
-    );
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _loading = false;
-      _activeCaseId = saved.id;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Pathway case saved as draft.')),
-    );
-    Navigator.of(context).pop(saved);
-  }
-
-  ClinicalCase _buildClinicalCase(ClinicalCaseStatus status) {
-    return ClinicalCase(
-      id: _activeCaseId ?? '',
-      patientName: _patientNameController.text.trim(),
-      pathway: _pathway,
-      status: status,
-      facts: {
-        'osteoporosisTreatmentStatus': _onOsteoporosisTreatment,
-        'minimalTraumaFracture': _minimalTraumaFracture,
-        'sex': _sex,
-        'postmenopausal': _postmenopausal,
-        'age': int.tryParse(_ageController.text),
-        'fractureSite': _fractureSite,
-        'eGFR': double.tryParse(_egfrController.text),
-        'liveInResidentialCare': _residentialCare,
-        'clinicalFrailtyScore': int.tryParse(_frailtyController.text),
-        'lifeExpectancy': double.tryParse(_lifeExpectancyController.text),
-        'knownPoorMedicationAdherence': _poorAdherence,
-        'cognitiveImpairment': _cognitiveImpairment,
-        'testAvailable': _dxaAvailable,
-        'testWithinLast2Years': _dxaWithinTwoYears,
-        'T-score': double.tryParse(_tScoreController.text),
-        'vitaminDLevel': double.tryParse(_vitaminDController.text),
-        'hipVertebralOrMultipleFracturesInLast24M': _majorRecentFracture,
-        'highRisk': _highRisk,
-        'historyOfMiOrStroke': _historyOfMiOrStroke,
-      },
-    );
-  }
-
-  Future<void> _loadExistingCase(String caseId) async {
-    setState(() => _loadingExisting = true);
-    final clinicalCase = await widget.repository.fetchClinicalCase(caseId);
-    if (!mounted) {
-      return;
-    }
-    if (clinicalCase != null) {
-      _applyClinicalCase(clinicalCase);
-    }
-    setState(() => _loadingExisting = false);
-  }
-
-  void _applyClinicalCase(ClinicalCase clinicalCase) {
-    final facts = clinicalCase.facts;
-    _activeCaseId = clinicalCase.id;
-    _pathway = clinicalCase.pathway;
-    _onOsteoporosisTreatment = _pathway == ClinicalPathway.pathway2;
-    _patientNameController.text = clinicalCase.patientName;
-    _ageController.text = facts['age']?.toString() ?? '';
-    _egfrController.text = facts['eGFR']?.toString() ?? '';
-    _frailtyController.text = facts['clinicalFrailtyScore']?.toString() ?? '';
-    _lifeExpectancyController.text = facts['lifeExpectancy']?.toString() ?? '';
-    _tScoreController.text = facts['T-score']?.toString() ?? '';
-    _vitaminDController.text = facts['vitaminDLevel']?.toString() ?? '65';
-    _sex = facts['sex']?.toString() ?? _sex;
-    _fractureSite = facts['fractureSite']?.toString() ?? _fractureSite;
-    _postmenopausal = facts['postmenopausal'] == true;
-    _minimalTraumaFracture = facts['minimalTraumaFracture'] == true;
-    _residentialCare = facts['liveInResidentialCare'] == true;
-    _poorAdherence = facts['knownPoorMedicationAdherence'] == true;
-    _cognitiveImpairment = facts['cognitiveImpairment'] == true;
-    _dxaAvailable = facts['testAvailable'] != false;
-    _dxaWithinTwoYears = facts['testWithinLast2Years'] != false;
-    _majorRecentFracture =
-        facts['hipVertebralOrMultipleFracturesInLast24M'] == true;
-    _highRisk = facts['highRisk'] == true;
-    _historyOfMiOrStroke = facts['historyOfMiOrStroke'] == true;
-  }
-
-  String? _required(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Required';
-    }
-    return null;
-  }
-
-  String? _numberRequired(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Required';
-    }
-    if (double.tryParse(value) == null) {
-      return 'Enter a number';
-    }
-    return null;
-  }
-}
-
-class _SwitchRow extends StatelessWidget {
-  const _SwitchRow({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-    this.subtitle,
-  });
-
-  final String label;
-  final bool value;
-  final ValueChanged<bool>? onChanged;
-  final String? subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return SwitchListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(label),
-      subtitle: subtitle == null ? null : Text(subtitle!),
-      value: value,
-      onChanged: onChanged,
-    );
-  }
+  static const _clinicianOwnedFactKeys = {
+    'eGFR',
+    'clinicalFrailtyScore',
+    'lifeExpectancy',
+    'knownPoorMedicationAdherence',
+    'cognitiveImpairment',
+    'testAvailable',
+    'testWithinLast2Years',
+    'T-score',
+    'vitaminDLevel',
+    'hipVertebralOrMultipleFracturesInLast24M',
+    'highRisk',
+    'historyOfMiOrStroke',
+    'yearSincePostmenopausal',
+    'isRobustWoman',
+  };
 }

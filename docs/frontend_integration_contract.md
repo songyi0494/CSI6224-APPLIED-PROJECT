@@ -1,3 +1,5 @@
+> Historical contract. The current implementation and known gaps are documented in [core_workflow.md](core_workflow.md). Resolve differences against the versioned code and the clinician-approved contract before deployment.
+
 # Frontend Integration Contract
 
 This document separates the Flutter UI responsibilities from Supabase and rule-engine responsibilities for the CSI6224 prototype.

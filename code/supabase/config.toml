@@ -1,0 +1,4 @@
+project_id = "osteocare-pathway"
+
+[functions.evaluate_pathway_1]
+verify_jwt = true

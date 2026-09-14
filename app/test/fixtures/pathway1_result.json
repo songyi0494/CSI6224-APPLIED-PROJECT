@@ -1,0 +1,117 @@
+{
+  "pathway": "PATHWAY1",
+  "decision": "action_taken",
+  "routing_reason": "No previous or current osteoporosis treatment was recorded.",
+  "rule_version": "pathway1-2026-09-13.1",
+  "actions": [
+    {
+      "type": "consideration",
+      "recommendation": "Consider commencement of osteoanabolic therapy",
+      "requireReview": true
+    },
+    {
+      "type": "referral",
+      "destination": "FRAGILE BONE CLINIC",
+      "reason": "Specialist input"
+    }
+  ],
+  "trace": [
+    {
+      "rule_id": "ENTRY",
+      "matched": true,
+      "input": {
+        "osteoporosisTreatmentStatus": false,
+        "minimalTraumaFracture": true,
+        "sex": "female",
+        "postmenopausal": true,
+        "age": 71,
+        "fractureSite": "vertebral"
+      },
+      "reason": "Pathway entry conditions: met."
+    },
+    {
+      "rule_id": "MENOPAUSAL_HORMONAL_THERAPY",
+      "matched": false,
+      "input": {
+        "sex": "female",
+        "postmenopausal": true,
+        "yearSincePostmenopausal": 20,
+        "minimalTraumaFracture": true,
+        "isRobustWoman": null
+      },
+      "reason": "Menopause and treatment consideration: not met."
+    },
+    {
+      "rule_id": "RENAL_DYSFUNCTION",
+      "matched": false,
+      "input": {
+        "eGFR": 54
+      },
+      "reason": "Kidney function condition: not met."
+    },
+    {
+      "rule_id": "ON_OSTEOPOROSIS_TREATMENT",
+      "matched": false,
+      "input": {
+        "osteoporosisTreatmentStatus": false
+      },
+      "reason": "Previous osteoporosis treatment: not met."
+    },
+    {
+      "rule_id": "RESIDENTIAL_CARE_OR_SEVERE_FRAILTY_OR_SHORT_LIFE_EXPECTANCY",
+      "matched": false,
+      "input": {
+        "liveInResidentialCare": false,
+        "clinicalFrailtyScore": 4,
+        "lifeExpectancy": 10
+      },
+      "reason": "Care setting, frailty and life expectancy: not met."
+    },
+    {
+      "rule_id": "ADHERENCE_CONCERN",
+      "matched": false,
+      "input": {
+        "knownPoorMedicationAdherence": false,
+        "cognitiveImpairment": false
+      },
+      "reason": "Medication adherence or cognitive impairment: not met."
+    },
+    {
+      "rule_id": "DXA_NOT_WITHIN_2YEARS",
+      "matched": false,
+      "input": {
+        "testAvailable": true,
+        "testWithinLast2Years": true
+      },
+      "reason": "Bone density test timing: not met."
+    },
+    {
+      "rule_id": "DXA_DISAVAILABLE",
+      "matched": false,
+      "input": {
+        "testAvailable": true
+      },
+      "reason": "Bone density test availability: not met."
+    },
+    {
+      "rule_id": "T_SCORE",
+      "matched": false,
+      "input": {
+        "T-score": -3.5
+      },
+      "reason": "Bone density condition: not met."
+    },
+    {
+      "rule_id": "RECENT_MAJOR_FRACTURES",
+      "matched": true,
+      "input": {
+        "hipVertebralOrMultipleFracturesInLast24M": true
+      },
+      "reason": "Recent major fractures: met."
+    }
+  ],
+  "missing_inputs": [],
+  "warnings": [
+    "Decision support requires clinician review."
+  ]
+}

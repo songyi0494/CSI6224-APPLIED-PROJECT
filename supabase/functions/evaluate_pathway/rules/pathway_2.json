@@ -1,0 +1,255 @@
+{
+    "metadata": {
+        "id": "PATHWAY2",
+        "title": "Patients on previous osteoporosis treatment - General"
+    },
+    "requiredFields": [
+        "antiresorptiveTreatmentStatus",
+        "antiresorptiveTreatmentDuration",
+        "adheredToTheTreatment",
+        "symptomaticFractureInLast12M",
+        "multipleFractures",
+        "lowBMD",
+        "priorMIorStroke",
+        "sequencingFromDenosumab"
+    ],
+    "root": "ON_ANTIRESORPTIVE_TREATMENT",
+    "nodes": {
+        "ON_ANTIRESORPTIVE_TREATMENT": {
+            "type": "decision",
+            "question": "Is the patient currently on antiresorptive treatment?",
+            "condition": {
+                "fact": "antiresorptiveTreatmentStatus",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "ANTIRESORPTIVE_TREATMENT_DURATION",
+            "no": "LEAF_NOT_APPLICABLE"
+        },
+        "ANTIRESORPTIVE_TREATMENT_DURATION": {
+            "type": "decision",
+            "question": "Has the patient been receiving their pre-existing antiresorptive treatment for 12 months or longer?",
+            "condition": {
+                "fact": "antiresorptiveTreatmentDuration",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "TREATMENT_ADHERENCE",
+            "no": "LEAF_STANDARD_ANTIRESORPTIVE_OPTIONS"
+        },
+        "TREATMENT_ADHERENCE": {
+            "type": "decision",
+            "question": "Has the patient adhered to the treatment plan?",
+            "condition": {
+                "fact": "adheredToTheTreatment",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "SYMPTOMATIC_FRACTURE",
+            "no": "LEAF_STANDARD_ANTIRESORPTIVE_OPTIONS"
+        },
+        "SYMPTOMATIC_FRACTURE": {
+            "type": "decision",
+            "question": "Has the patient had 1 or more symptomatic fractures in last 12 months?",
+            "condition": {
+                "fact": "symptomaticFractureInLast12M",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "MULTIPLE_FRACTURES",
+            "no": "LEAF_STANDARD_ANTIRESORPTIVE_OPTIONS"
+        },
+        "MULTIPLE_FRACTURES": {
+            "type": "decision",
+            "question": "Has the patient had 2 or more fractures? (Check for occult vertebral fractures in previous chest or abdomen scan)",
+            "condition": {
+                "fact": "multipleFractures",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "CHECK_BMD",
+            "no": "LEAF_STANDARD_ANTIRESORPTIVE_OPTIONS"
+        },
+        "CHECK_BMD": {
+            "type": "decision",
+            "question": "Does the patient have a BMD T-score below -3.0 at any site?",
+            "condition": {
+                "fact": "lowBMD",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "MI_OR_STROKE_HISTORY",
+            "no": "LEAF_STANDARD_ANTIRESORPTIVE_OPTIONS"
+        },
+        "MI_OR_STROKE_HISTORY": {
+            "type": "decision",
+            "question": "Does the patient have a history of myocardial infarction(MI) or stroke?",
+            "condition": {
+                "fact": "priorMIorStroke",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "SEQUENCING_WITH_HISTORY",
+            "no": "SEQUENCING_NO_HISTORY"
+        },
+        "SEQUENCING_WITH_HISTORY": {
+            "type": "decision",
+            "question": "Sequencing from denosumab?",
+            "condition": {
+                "fact": "sequencingFromDenosumab",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "LEAF_COMBINATION_THERAPY_REFERRAL",
+            "no": "LEAF_TERIPARATIDE_REFERRAL"
+        },
+        "SEQUENCING_NO_HISTORY": {
+            "type": "decision",
+            "question": "Sequencing from denosumab?",
+            "condition": {
+                "fact": "sequencingFromDenosumab",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "LEAF_RESTARTING_DENOSUMAB_REFERRAL",
+            "no": "LEAF_ROMOSOZUMAB_REFERRAL"
+        },
+        "LEAF_NOT_APPLICABLE": {
+            "type": "leaf",
+            "actions": []
+        },
+        "LEAF_STANDARD_ANTIRESORPTIVE_OPTIONS": {
+            "type": "leaf",
+            "actions": [
+                {
+                    "type": "actionOptions",
+                    "options": [
+                        [
+                            {
+                                "type": "treatmentOptions",
+                                "options": [
+                                    {
+                                        "type": "medication",
+                                        "medication": "Zoledronic acid",
+                                        "dose": "5mg",
+                                        "route": "IV infusion",
+                                        "frequency": "yearly",
+                                        "duration": "3 years"
+                                    },
+                                    {
+                                        "type": "medication",
+                                        "medication": "Denosumab",
+                                        "dose": "60mg",
+                                        "route": "subcut",
+                                        "frequency": "6 monthly"
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "followUp",
+                                "destination": "GP"
+                            },
+                            {
+                                "type":"review",
+                                "instruction":"Reassess fracture risk after 5 years or after 3 zoledronic acid doses."
+                            },
+                            {
+                                "type": "referral",
+                                "destination": "FRAGILE BONE CLINIC",
+                                "when": "If assistance needed in discontinuation after a maximum of 10 years of treatment."
+                            }
+                        ],
+                        [
+                            {
+                                "type": "referral",
+                                "destination": "SPECIALIST",
+                                "reason": "For privately funded osteoanabolic therapy if patient wishes."
+                            }
+                        ]
+                    ]
+                }
+            ]
+        },
+        "LEAF_COMBINATION_THERAPY_REFERRAL": {
+            "type": "leaf",
+            "actions": [
+                {
+                    "type": "referral",
+                    "destination": "SPECIALIST OR FRAGILE BONE CLINIC",
+                    "reason": "Consider teriparatide."
+                },
+                {
+                    "type": "medication",
+                    "medication": "Teriparatide",
+                    "dose": "20microg",
+                    "route": "subcut",
+                    "frequency": "daily",
+                    "duration": "18-24 months"
+                },
+                {
+                    "type": "combinationTherapy",
+                    "instruction": "Initiate teriparatide and denosumab concurrently."
+                }
+            ]
+        },
+        "LEAF_TERIPARATIDE_REFERRAL": {
+            "type": "leaf",
+            "actions": [
+                {
+                    "type": "referral",
+                    "destination": "SPECIALIST OR FRAGILE BONE CLINIC",
+                    "reason": "Consider teriparatide."
+                },
+                {
+                    "type": "medication",
+                    "medication": "Teriparatide",
+                    "dose": "20microg",
+                    "route": "subcut",
+                    "frequency": "daily",
+                    "duration": "18-24 months"
+                }
+            ]
+        },
+        "LEAF_RESTARTING_DENOSUMAB_REFERRAL": {
+            "type": "leaf",
+            "actions": [
+                {
+                    "type": "referral",
+                    "destination": "SPECIALIST OR FRAGILE BONE CLINIC",
+                    "reason": "Consider commencement of romosozumab."
+                },
+                {
+                    "type": "medication",
+                    "medication": "Romosozumab",
+                    "dose": "210mg",
+                    "route": "subcut",
+                    "frequency": "monthly",
+                    "duration": "12 months"
+                },
+                {
+                    "type": "restartDenosumab",
+                    "timing": "Start 3 months post last denosumab dose.",
+                    "instruction": "Consider restarting denosumab after 6th month of Romosozumab treatment."
+                }
+            ]
+        },
+        "LEAF_ROMOSOZUMAB_REFERRAL": {
+            "type": "leaf",
+            "actions": [
+                {
+                    "type": "referral",
+                    "destination": "SPECIALIST OR FRAGILE BONE CLINIC",
+                    "reason": "Consider commencement of romosozumab."
+                },
+                {
+                    "type": "medication",
+                    "medication": "Romosozumab",
+                    "dose": "210mg",
+                    "route": "subcut",
+                    "frequency": "monthly",
+                    "duration": "12 months"
+                }
+            ]
+        }
+    }
+}

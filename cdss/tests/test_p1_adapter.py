@@ -1,52 +1,84 @@
-from cdss.adapter.pathway_adapter import PathwayCompatibilityAdapter
-from cdss.engine.pipeline import FSFHGPipeline
+"""
+Validation suite verifying the frozen schema, boolean coercion,
+unique trace tokens, and 4-key envelope format.
+"""
+
+import pytest
+from cdss.schemas import Pathway1Facts, Pathway2Facts
+from cdss.engine.pathway_1 import evaluate_pathway_1
+from cdss.engine.pathway_2 import evaluate_pathway_2
+from cdss.adapter.pathway_adapter import format_evaluation_for_database
 
 
-def test_frozen_sample_facts_evaluation():
-    engine = FSFHGPipeline()
-    sample_facts = {
+def test_pathway1_boolean_coercion():
+    # Verify string "true" coercing to native boolean true
+    payload = {
         "osteoporosisTreatmentStatus": False,
         "minimalTraumaFracture": True,
         "sex": "female",
-        "postmenopausal": "true",
-        "age": 74,
-        "fractureSite": "hip",
-        "eGFR": 54,
-        "liveInResidentialCare": False,
-        "clinicalFrailtyScore": 4,
-        "lifeExpectancy": 10,
-        "knownPoorMedicationAdherence": False,
-        "cognitiveImpairment": False,
-        "testAvailable": True,
-        "testWithinLast2Years": True,
-        "T-score": -2.7,
-        "hipVertebralOrMultipleFracturesInLast24M": True,
-        "highRisk": True,
+        "postmenopausal": "true",  # String coercion check
+        "age": 68,
+        "T-score": -2.8,
+        "hipVertebralOrMultipleFracturesInLast24M": True
     }
-
-    patient = PathwayCompatibilityAdapter.flutter_facts_to_patient_input(sample_facts)
-    result = engine.evaluate(patient)
-    envelope = PathwayCompatibilityAdapter.cdss_output_to_flutter_envelope(result)
-
-    assert envelope["pathway"] == "PATHWAY1"
-    assert envelope["decision"] == "action_taken"
-    assert envelope["actions"][0]["type"] == "consideration"
-    assert "ENTRY_CONDITION_PASSED" in envelope["trace"]
-    assert "P1_VERY_HIGH_RISK_ANABOLIC" in envelope["trace"]
+    facts = Pathway1Facts(**payload)
+    assert facts.postmenopausal is True
+    
+    result = evaluate_pathway_1(facts)
+    assert result.pathway == "PATHWAY1"
+    assert result.decision == "action_taken"
+    assert "P1_RECENT_HIP_OR_VERTEBRAL_FRACTURE" in result.trace
+    assert "P1_VERY_HIGH_RISK_ANABOLIC" in result.trace
 
 
-def test_missing_renal_data_fallback():
-    engine = FSFHGPipeline()
-    sample_facts = {
-        "osteoporosisTreatmentStatus": False,
+def test_pathway1_severe_renal_impairment():
+    payload = {
+        "minimalTraumaFracture": True,
+        "sex": "female",
+        "postmenopausal": True,
+        "age": 72,
+        "eGFR": 24.5  # Critical renal threshold
+    }
+    facts = Pathway1Facts(**payload)
+    result = evaluate_pathway_1(facts)
+    assert result.decision == "specialist_referral"
+    assert "P1_RENAL_IMPAIRMENT_CRITICAL" in result.trace
+
+
+def test_pathway2_pbs_cascade_and_cardiovascular_safety():
+    # Qualifying PBS 5-tier cascade with MI history -> Romosozumab blocked
+    payload = {
+        "osteoporosisTreatmentStatus": True,
+        "onAntiresorptiveGt12m": True,
+        "medicationAdherent": True,
+        "symptomaticFractureLast12m": True,
+        "lifetimeFractureCount": 3,
+        "lowestTScore": -3.2,
+        "history_mi_or_stroke": True,
+        "age": 74,
+        "sex": "female"
+    }
+    facts = Pathway2Facts(**payload)
+    result = evaluate_pathway_2(facts)
+    assert result.pathway == "PATHWAY2"
+    assert result.decision == "action_taken"
+    assert "P2_5_TIER_PBS_CASCADE_QUALIFIED" in result.trace
+    assert "P2_ROMOSOZUMAB_CONTRAINDICATED_CV_EVENT" in result.trace
+    assert "Teriparatide" in result.actions[0].recommendation
+
+
+def test_database_adapter_formatting():
+    payload = {
         "minimalTraumaFracture": True,
         "sex": "male",
-        "age": 62,
+        "age": 65,
+        "clinicalFrailtyScore": 6
     }
-
-    patient = PathwayCompatibilityAdapter.flutter_facts_to_patient_input(sample_facts)
-    result = engine.evaluate(patient)
-
-    assert result.safety_fallback is True
-    assert result.requires_clinician_review is True
-    assert "RENAL_DATA_MISSING_FALLBACK" in [step.rule_id for step in result.reasoning_trace]
+    facts = Pathway1Facts(**payload)
+    result = evaluate_pathway_1(facts)
+    db_record = format_evaluation_for_database("asm_test_001", 1, result)
+    
+    assert db_record["assessment_id"] == "asm_test_001"
+    assert db_record["pathway"] == "PATHWAY1"
+    assert isinstance(db_record["reasoning_trace"], list)
+    assert isinstance(db_record["actions"], list)

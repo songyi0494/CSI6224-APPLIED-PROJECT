@@ -1,79 +1,107 @@
-from typing import List, Tuple
-from cdss.schemas import (
-    ActionClassification,
-    PatientClinicalInput,
-    TraceStep,
-)
+"""
+FSFHG Pathway 2 Deterministic Rule Engine.
+Evaluates pre-treated osteoporosis cases with breakthrough fractures.
+Enforces the 5-tier PBS escalation cascade and cardiovascular safety checks.
+"""
+
+from typing import List
+from cdss.schemas import Pathway2Facts, EvaluationEnvelope, ClinicalAction
 
 
-def evaluate_pathway_2_rules(
-    patient: PatientClinicalInput, trace: List[TraceStep]
-) -> Tuple[ActionClassification, str, bool, bool]:
-    """
-    Evaluates Pathway 2 rules: Pre-treated patients presenting with a subsequent fracture.
-    Follows the 5-step PBS escalation cascade and cardiovascular safety check.
-    Returns: (action_type, recommendation_text, safety_fallback, requires_clinician_review)
-    """
-    trace.append(
-        TraceStep(
-            rule_id="P2_ENTRY",
-            rule_description="Entry eligibility check for Pathway 2 (Pre-Treated)",
-            condition_matched=True,
-            details="Patient presenting with subsequent fracture while on prior osteoporosis therapy.",
-        )
-    )
+def evaluate_pathway_2(facts: Pathway2Facts) -> EvaluationEnvelope:
+    trace: List[str] = ["P2_ENTRY_EVALUATION"]
+    actions: List[ClinicalAction] = []
 
-    # Evaluate the 5-tier escalation cascade criteria
-    c1 = patient.on_antiresorptive_gt_12_months
-    c2 = patient.patient_adherent
-    c3 = patient.symptomatic_fracture_in_last_12_months
-    c4 = patient.total_lifetime_fractures >= 2
-    c5 = patient.t_score_lowest is not None and patient.t_score_lowest <= -3.0
+    # Cascade Condition Checks
+    cond_duration = facts.onAntiresorptiveGt12m
+    cond_adherence = facts.medicationAdherent
+    cond_recent_fx = facts.symptomaticFractureLast12m
+    cond_multiple_fx = facts.lifetimeFractureCount >= 2
+    cond_severe_t_score = facts.lowestTScore <= -3.0
 
-    cascade_passed = all([c1, c2, c3, c4, c5])
+    # Verify 5-Tier PBS Cascade Criteria
+    tier_conditions = [
+        cond_duration,
+        cond_adherence,
+        cond_recent_fx,
+        cond_multiple_fx,
+        cond_severe_t_score
+    ]
+    pbs_cascade_qualifies = all(tier_conditions)
 
-    trace.append(
-        TraceStep(
-            rule_id="P2_CASCADE_CHECKLIST",
-            rule_description="Pathway 2 Escalation Cascade Checklist",
-            condition_matched=cascade_passed,
-            details=f">12m Tx: {c1}, Adherent: {c2}, Symptomatic # in 12m: {c3}, Total # >= 2: {c4}, BMD <= -3.0: {c5}",
-        )
-    )
-
-    # Escalation branch (All 5 criteria satisfied)
-    if cascade_passed:
-        if not patient.history_of_mi_or_stroke:
-            deno_note = (
-                " If sequencing from denosumab: start romosozumab 3 months post last denosumab dose, "
-                "and consider restarting denosumab after 6th month of romosozumab."
-                if patient.sequencing_from_denosumab
-                else ""
-            )
-            return (
-                ActionClassification.ESCALATE_ANABOLIC,
-                f"Escalate to Romosozumab 210 mg SC monthly for 12 months. Refer to Fragile Bone Clinic.{deno_note}",
-                False,
-                True,
+    if pbs_cascade_qualifies:
+        trace.append("P2_5_TIER_PBS_CASCADE_QUALIFIED")
+        
+        # Safety Clearance: Cardiovascular History Verification
+        if facts.history_mi_or_stroke:
+            trace.append("P2_ROMOSOZUMAB_CONTRAINDICATED_CV_EVENT")
+            actions.append(
+                ClinicalAction(
+                    type="treatment",
+                    recommendation="PBS Escalation met. Romosozumab contraindicated due to prior MI/Stroke. Initiate Teriparatide 20mcg SC daily (max 24 months).",
+                    requireReview=True
+                )
             )
         else:
-            deno_note = (
-                " If sequencing from denosumab: use combination therapy (teriparatide + denosumab concurrently) "
-                "to prevent rebound bone loss."
-                if patient.sequencing_from_denosumab
-                else ""
+            trace.append("P2_ANABOLIC_ESCALATION_APPROVED")
+            actions.append(
+                ClinicalAction(
+                    type="treatment",
+                    recommendation="PBS Criteria met for Breakthrough Fracture: Escalate to Romosozumab 210mg SC monthly for 12 months, followed by antiresorptive consolidation.",
+                    requireReview=True
+                )
             )
-            return (
-                ActionClassification.ESCALATE_ANABOLIC,
-                f"Patient has prior MI or stroke (Romosozumab contraindicated). Escalate to Teriparatide 20 mcg SC daily for 18-24 months. Refer to Fragile Bone Clinic.{deno_note}",
-                False,
-                True,
+            actions.append(
+                ClinicalAction(
+                    type="consideration",
+                    recommendation="Alternative: Teriparatide 20mcg SC daily for up to 24 months.",
+                    requireReview=True
+                )
             )
+        
+        return EvaluationEnvelope(
+            pathway="PATHWAY2",
+            decision="action_taken",
+            actions=actions,
+            trace=trace
+        )
 
-    # Non-escalation fallback: Maintain / switch parenteral antiresorptive
-    return (
-        ActionClassification.MAINTAIN_ANTIRESORPTIVE,
-        "Criteria for osteoanabolic escalation not met. Continue antiresorptive therapy (prefer parenteral: IV Zoledronic acid 5 mg annual or Denosumab 60 mg SC 6-monthly). Review adherence and reassess fracture risk.",
-        False,
-        False,
+    # Fallback Evaluation for Incomplete PBS Escalation Criteria
+    trace.append("P2_SUB_OPTIMAL_RESPONSE_INVESTIGATION")
+    
+    if not cond_duration:
+        trace.append("P2_TREATMENT_DURATION_UNDER_12M")
+        actions.append(
+            ClinicalAction(
+                type="notice",
+                recommendation="Patient has been on antiresorptive therapy for < 12 months. Insufficient duration to declare primary failure unless atypical presentation.",
+                requireReview=True
+            )
+        )
+    
+    if not cond_adherence:
+        trace.append("P2_NON_ADHERENCE_SUSPECTED")
+        actions.append(
+            ClinicalAction(
+                type="treatment",
+                recommendation="Address medication adherence barriers. Switch from oral regimen to supervised parenteral therapy (IV Zoledronic Acid 5mg annually).",
+                requireReview=True
+            )
+        )
+
+    if cond_duration and cond_adherence and not pbs_cascade_qualifies:
+        trace.append("P2_CLINICAL_ESCALATION_REQUIRED")
+        actions.append(
+            ClinicalAction(
+                type="referral",
+                recommendation="Breakthrough fracture without meeting full 5-tier PBS criteria. Escalate to Metabolic Bone / Osteoporosis Specialist Clinic for secondary screening.",
+                requireReview=True
+            )
+        )
+
+    return EvaluationEnvelope(
+        pathway="PATHWAY2",
+        decision="require_review",
+        actions=actions,
+        trace=trace
     )

@@ -21,7 +21,6 @@ export interface DecisionTreeRule {
         id: string;
         title: string;
     },
-    requiredFields: string[];
     root: string;
     nodes: Record<string, TreeNode>;
 }
@@ -40,12 +39,35 @@ export interface EvaluationError {
     fields?: string[];
     nodeId?: string;
     pathwayId?: string;
+    message?: string;
 }
 
-export interface EvaluationResult {
-    pathway: string;
-    decision: "not_applicable" | "action_taken" | "no_action";
+export interface QuestionState {
+    status: "question";
+    pathwayId: string;
+    nodeId: string;
+    question: string;
+    requiredFacts: string[];
+}
+
+export interface CompletedState {
+    status: "complete";
+    pathwayId: string;
     actions: Action[];
+}
+
+export interface ErrorState {
+    status: "error";
+    pathwayId: string;
+    error: EvaluationError;
+    actions: Action[];
+}
+
+export type EvaluationResultStep =
+    | QuestionState
+    | CompletedState
+    | ErrorState;
+
+export type EvaluationResult = EvaluationResultStep & {
     trace: TraceEntry[];
-    error?: EvaluationError;
 }

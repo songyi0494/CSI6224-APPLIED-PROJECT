@@ -1,31 +1,19 @@
 import type { Action } from "../types/action.ts";
-import type { DecisionTreeRule, EvaluationResult, TraceEntry, TreeNode } from "../types/decisionTree.ts";
-import { evaluateCondition, getMissingRequiredFields } from "./evaluateCondition.ts";
+import type { TraceEntry, EvaluationError, DecisionTreeRule, EvaluationResult, TreeNode } from "../types/decisionTree.ts";
+import { evaluateCondition, getRequiredFactsFromCondition } from "./evaluateCondition.ts";
 
 function evaluateSingleTree(doc: DecisionTreeRule, facts: Record<string, unknown>): {
     pathway: string;
-    decision: EvaluationResult["decision"];
     actions: Action[];
     trace: TraceEntry[];
-    error?: EvaluationResult["error"];
-} {
-    const missingFields = getMissingRequiredFields(doc.requiredFields, facts);
-    const actions: Action[] = [];
-    const trace: TraceEntry[] = [];
-
-    if (missingFields.length > 0) {
-        return {
-            pathway: doc.metadata.id,
-            decision: "not_applicable",
-            actions,
-            trace,
-            error: {
-                code: "MISSING_REQUIRED_FIELDS",
-                fields: missingFields,
-                pathwayId: doc.metadata.id,
-            },
-        };
+    nextQuestion?: {
+        nodeId: string;
+        question: string;
+        requiredFacts: string[];
     }
+    error?: EvaluationError;
+} {
+    const trace: TraceEntry[] = [];
 
     let currentNodeId = doc.root;
 
@@ -35,13 +23,13 @@ function evaluateSingleTree(doc: DecisionTreeRule, facts: Record<string, unknown
         if (!node) {
             return {
                 pathway: doc.metadata.id,
-                decision: "not_applicable",
-                actions,
+                actions: [],
                 trace,
                 error: {
                     code: "NODE_NOT_FOUND",
                     nodeId: currentNodeId,
                     pathwayId: doc.metadata.id,
+                    message: `Node not found: ${currentNodeId}`,
                 },
             };
         }
@@ -56,41 +44,34 @@ function evaluateSingleTree(doc: DecisionTreeRule, facts: Record<string, unknown
 
             return {
                 pathway: doc.metadata.id,
-                decision: node.actions.length ? "action_taken" : "no_action",
                 actions: node.actions,
                 trace,
             };
         }
 
-        if (currentNodeId === "HIGH_RISK_CHECK") {
-            const highRiskFields = [
-                "recentFractureWithin2Y",
-                "historyOf2orMoreFractures",
-                "clinicalRiskFactors",
-                "FRAX10YmajorOsteoporoticFractureRiskPercent",
-                "FRAX10YmajorHipFractureRiskPercent"
-            ];
+        const evaluateResult = evaluateCondition(node.condition, facts);
 
-            const missingFields = highRiskFields.filter(
-                (field) => facts[field] === undefined || facts[field] === null
-            );
+        if (evaluateResult === "unknown") {
+            trace.push({
+                pathwayId: doc.metadata.id,
+                nodeId: currentNodeId,
+                nodeType: "decision",
+                actionsTriggered: [],
+            });
 
-            if (missingFields.length > 0) {
-                return {
-                    pathway: doc.metadata.id,
-                    decision: "not_applicable",
-                    actions,
-                    trace,
-                    error: {
-                        code: "MISSING_REQUIRED_FIELDS",
-                        fields: missingFields,
-                        pathwayId: doc.metadata.id,
-                    },
-                };
-            }
+            return {
+                pathway: doc.metadata.id,
+                actions: [],
+                trace,
+                nextQuestion: {
+                    nodeId: currentNodeId,
+                    question: node.question,
+                    requiredFacts: getRequiredFactsFromCondition(node.condition),
+                },
+            };
         }
 
-        const matched = evaluateCondition(node.condition, facts);
+        const matched = evaluateResult === "true";
         const nextNodeId = matched ? node.yes : node.no;
 
         trace.push({
@@ -120,29 +101,32 @@ export function evaluateDecisionTree(
     while (true) {
         if (visitedPathways.has(currentPathway)) {
             return {
-                pathway: currentPathway,
-                decision: "not_applicable",
-                actions: finalActions,
-                trace: fullTrace,
+                status: "error",
+                pathwayId: currentPathway,
                 error: {
                     code: "REDIRECT_LOOP",
                     pathwayId: currentPathway,
+                    message: `Redirect loop detected at ${currentPathway}`,
                 },
+                actions: finalActions,
+                trace: fullTrace,
             };
         }
         visitedPathways.add(currentPathway);
 
         const doc = docs[currentPathway];
+
         if (!doc) {
             return {
-                pathway: currentPathway,
-                decision: "not_applicable",
-                actions: finalActions,
-                trace: fullTrace,
+                status: "error",
+                pathwayId: currentPathway,
                 error: {
                     code: "PATHWAY_NOT_FOUND",
                     pathwayId: currentPathway,
+                    message: `Pathway not found: ${currentPathway}`,
                 },
+                actions: finalActions,
+                trace: fullTrace,
             };
         }
 
@@ -151,11 +135,22 @@ export function evaluateDecisionTree(
 
         if (result.error) {
             return {
-                pathway: currentPathway,
-                decision: "not_applicable",
+                status: "error",
+                pathwayId: currentPathway,
+                error: result.error,
                 actions: finalActions,
                 trace: fullTrace,
-                error: result.error,
+            };
+        }
+
+        if (result.nextQuestion) {
+            return {
+                status: "question",
+                pathwayId: currentPathway,
+                nodeId: result.nextQuestion.nodeId,
+                question: result.nextQuestion.question,
+                requiredFacts: result.nextQuestion.requiredFacts,
+                trace: fullTrace,
             };
         }
 
@@ -175,8 +170,8 @@ export function evaluateDecisionTree(
         }
 
         return {
-            pathway: currentPathway,
-            decision: finalActions.length ? "action_taken" : "no_action",
+            status: "complete",
+            pathwayId: currentPathway,
             actions: finalActions,
             trace: fullTrace,
         };

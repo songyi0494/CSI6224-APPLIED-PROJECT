@@ -1,0 +1,1 @@
+-- Empty migration previously applied to the remote database

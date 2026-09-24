@@ -15,7 +15,13 @@
         "femoralNeckTscore",
         "hipTscore",
         "lumbarSpineTscore",
-        "hipVertebralOrMultipleFracturesInLast24M"    ],
+        "hipVertebralOrMultipleFracturesInLast24M",
+        "recentFractureWithin2Y",
+        "historyOf2orMoreFractures",
+        "clinicalRiskFactors",
+        "FRAX10YmajorOsteoporoticFractureRiskPercent",
+        "FRAX10YmajorHipFractureRiskPercent"
+    ],
     "root": "RENAL_DYSFUNCTION",
     "nodes": {
         "RENAL_DYSFUNCTION": {

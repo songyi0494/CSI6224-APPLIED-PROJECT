@@ -12,14 +12,12 @@ String clinicalPathwayLabel(ClinicalPathway pathway) {
 
 String clinicalCaseStatusLabel(ClinicalCaseStatus status) => status.label;
 
-String questionnaireStatusLabel(QuestionnaireStatus status) {
+String mockQuestionnaireDraftStateLabel(MockQuestionnaireDraftState status) {
   switch (status) {
-    case QuestionnaireStatus.draft:
+    case MockQuestionnaireDraftState.draft:
       return 'Draft';
-    case QuestionnaireStatus.published:
-      return 'Published';
-    case QuestionnaireStatus.closed:
-      return 'Closed';
+    case MockQuestionnaireDraftState.ready:
+      return 'Ready in mock mode';
   }
 }
 
@@ -27,14 +25,18 @@ String questionTypeLabel(QuestionType type) {
   switch (type) {
     case QuestionType.text:
       return 'Text';
-    case QuestionType.yesNo:
-      return 'Yes / No';
-    case QuestionType.number:
+    case QuestionType.numeric:
       return 'Number';
+    case QuestionType.checkbox:
+      return 'Checkbox';
+    case QuestionType.singleChoice:
+      return 'Single choice';
+    case QuestionType.multiChoice:
+      return 'Multiple choice';
+    case QuestionType.dropdown:
+      return 'Dropdown';
     case QuestionType.scale:
       return 'Scale';
-    case QuestionType.choice:
-      return 'Choice';
   }
 }
 

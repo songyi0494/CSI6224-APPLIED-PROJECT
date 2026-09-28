@@ -62,10 +62,8 @@ Future<void> tapVisible(
   await tester.pumpAndSettle();
 }
 
-Finder formListView() => find.descendant(
-  of: find.byType(Form),
-  matching: find.byType(ListView),
-);
+Finder formListView() =>
+    find.descendant(of: find.byType(Form), matching: find.byType(ListView));
 
 Future<void> tapFormAction(WidgetTester tester, Finder target) async {
   final scrollable = formListView();
@@ -131,15 +129,34 @@ void main() {
       );
       await signIn(repo, 'clinician@example.test');
       await mount(tester, repo);
-      await tester.tap(
-        find.widgetWithText(OutlinedButton, 'Enter clinical input'),
-      );
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Continue'));
       await tester.pumpAndSettle();
-      expect(find.text('Review assessment'), findsOneWidget);
+      expect(find.text('Patient overview'), findsOneWidget);
       expect(find.text('Avery Martin'), findsOneWidget);
-      expect(find.text('Selected pathway'), findsOneWidget);
-      expect(find.text('Clinician clinical input'), findsOneWidget);
-      expect(find.byWidgetPredicate((w) => w is SegmentedButton), findsNothing);
+      expect(find.text('Patient-Reported Questionnaire'), findsOneWidget);
+      expect(find.text('Relevant Clinical Information'), findsOneWidget);
+      expect(find.text('Start Pathway Assessment'), findsOneWidget);
+
+      await tapVisible(
+        tester,
+        find.text('Start Pathway Assessment'),
+        find.byType(SingleChildScrollView),
+      );
+      expect(find.text('Clinical assessment result'), findsOneWidget);
+      expect(find.text('Pathway Assessment'), findsOneWidget);
+      await tapVisible(
+        tester,
+        find.text('Start guided pathway questions'),
+        find.byType(SingleChildScrollView),
+      );
+      expect(find.text('Clinical pathway'), findsOneWidget);
+      expect(
+        find.text("What is the patient's eGFR value? (Unit: mL/min)"),
+        findsOneWidget,
+      );
+      expect(find.text('More clinical information required'), findsOneWidget);
+      expect(find.text('Back'), findsNothing);
+      expect(find.text('Exit pathway'), findsOneWidget);
     },
   );
   testWidgets(
@@ -179,6 +196,57 @@ void main() {
       expect(find.text('Continue assessment'), findsOneWidget);
     },
   );
+  testWidgets('clinician decision choices use the existing review screen', (
+    tester,
+  ) async {
+    final repo = repository();
+    await signIn(repo, 'patient@example.test');
+    final assessment = (await repo.fetchClinicalCases()).single;
+    await repo.submitAssessment(
+      id: assessment.id,
+      revision: assessment.revision,
+      input: assessment.input,
+    );
+    await signIn(repo, 'clinician@example.test');
+    await repo.completePathway1ClinicianInput(
+      assessment: await repo.fetchClinicalCase(assessment.id),
+      input: completePathway1ClinicianInput,
+    );
+
+    await mount(tester, repo);
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Review'));
+    await tester.pumpAndSettle();
+    expect(find.text('Patient overview'), findsOneWidget);
+    await tapVisible(
+      tester,
+      find.text('Review Result'),
+      find.byType(SingleChildScrollView),
+    );
+
+    expect(find.text('Select a decision'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, 'Approve'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, 'Withhold'), findsOneWidget);
+    expect(
+      find.widgetWithText(ChoiceChip, 'Request more information'),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(ChoiceChip, 'Arrange follow-up'),
+      findsOneWidget,
+    );
+
+    await tapVisible(
+      tester,
+      find.widgetWithText(ChoiceChip, 'Withhold'),
+      find.byType(SingleChildScrollView),
+    );
+    expect(
+      tester
+          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Withhold'))
+          .selected,
+      isTrue,
+    );
+  });
   testWidgets('patient reviews answers before submission', (tester) async {
     final repo = repository();
     await signIn(repo, 'patient@example.test');
@@ -280,7 +348,7 @@ void main() {
     expect(submitted.id, draft.id);
     expect(submitted.status, ClinicalCaseStatus.clinicianInputRequired);
     expect(find.text('Patient Dashboard'), findsOneWidget);
-    expect(find.text('Waiting for clinician input'), findsOneWidget);
+    expect(find.text('Submitted — waiting for clinician'), findsOneWidget);
     expect(find.text('Withdraw and edit'), findsOneWidget);
     expect(await repo.fetchClinicalCases(), hasLength(1));
   });
@@ -315,12 +383,13 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Reviewed recommendation'), findsOneWidget);
+    expect(find.text('Outcome'), findsOneWidget);
+    expect(find.text('Clinician-reviewed recommendation'), findsOneWidget);
     expect(
       find.text('Consider commencement of osteoanabolic therapy'),
       findsOneWidget,
     );
-    expect(find.text('Message from your clinician'), findsOneWidget);
+    expect(find.text('Clinician message'), findsOneWidget);
     expect(
       find.text('Reviewed recommendation and clinical inputs.'),
       findsOneWidget,
@@ -332,35 +401,26 @@ void main() {
       find.text('View recommendation'),
       find.byType(ListView).last,
     );
-    final dialog = find.byType(AlertDialog);
-    Finder inDialog(Finder finder) => find.descendant(
-      of: dialog,
-      matching: finder,
-    );
-
-    expect(dialog, findsOneWidget);
-    expect(inDialog(find.text('Reviewed recommendation')), findsOneWidget);
+    expect(find.text('Your Care Recommendation'), findsOneWidget);
+    expect(find.text('Reviewed by your clinician'), findsOneWidget);
     expect(
-      inDialog(find.text('Consider commencement of osteoanabolic therapy')),
+      find.text('Consider commencement of osteoanabolic therapy'),
       findsOneWidget,
     );
     expect(
-      inDialog(find.text('Reviewed recommendation and clinical inputs.')),
+      find.text('Reviewed recommendation and clinical inputs.'),
       findsOneWidget,
     );
-    expect(inDialog(find.textContaining('Pathway 1')), findsNothing);
-    expect(inDialog(find.textContaining('PATHWAY1')), findsNothing);
-    expect(inDialog(find.textContaining('Treatment naïve')), findsNothing);
-    expect(inDialog(find.textContaining('ENTRY')), findsNothing);
-    expect(inDialog(find.textContaining('T_SCORE')), findsNothing);
-    expect(
-      inDialog(find.textContaining('RECENT_MAJOR_FRACTURES')),
-      findsNothing,
-    );
-    expect(inDialog(find.textContaining('rule version')), findsNothing);
-    expect(inDialog(find.textContaining('rule_version')), findsNothing);
-    expect(inDialog(find.textContaining('Rule version')), findsNothing);
-    expect(inDialog(find.textContaining('Technical rule')), findsNothing);
+    expect(find.textContaining('Pathway 1'), findsNothing);
+    expect(find.textContaining('PATHWAY1'), findsNothing);
+    expect(find.textContaining('Treatment naïve'), findsNothing);
+    expect(find.textContaining('ENTRY'), findsNothing);
+    expect(find.textContaining('T_SCORE'), findsNothing);
+    expect(find.textContaining('RECENT_MAJOR_FRACTURES'), findsNothing);
+    expect(find.textContaining('rule version'), findsNothing);
+    expect(find.textContaining('rule_version'), findsNothing);
+    expect(find.textContaining('Rule version'), findsNothing);
+    expect(find.textContaining('Technical rule'), findsNothing);
   });
   testWidgets('patient more information outcome is patient friendly', (
     tester,
@@ -390,17 +450,18 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Message from your clinician'), findsOneWidget);
+    expect(find.text('Clinician message'), findsOneWidget);
     expect(
       find.text('Please confirm when the fracture occurred.'),
       findsOneWidget,
     );
     expect(
       find.text(
-        'Please follow the instructions from your clinician before the assessment can be completed.',
+        'Follow the instructions from your clinician so the assessment can be completed.',
       ),
       findsOneWidget,
     );
+    expect(find.text('What you need to do'), findsOneWidget);
     expect(find.textContaining('needs_more_information'), findsNothing);
     expect(find.text('Provide more information'), findsNothing);
     expect(find.text('Continue assessment'), findsNothing);
@@ -433,21 +494,58 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Follow-up details'), findsOneWidget);
+    expect(find.text('Follow-up / next steps'), findsOneWidget);
+    expect(find.text('Clinician message'), findsOneWidget);
     expect(
-      find.text(
-        'Please book a follow-up appointment after your blood tests.',
-      ),
+      find.text('Please book a follow-up appointment after your blood tests.'),
       findsOneWidget,
     );
     expect(
       find.text(
-        'Please follow the instructions from your clinician for the next step.',
+        'Follow the plan provided by your clinician for the next step.',
       ),
       findsOneWidget,
     );
     expect(find.textContaining('follow_up_required'), findsNothing);
     expect(find.textContaining('arrange_follow_up'), findsNothing);
+  });
+  testWidgets('patient withheld outcome does not show recommendation actions', (
+    tester,
+  ) async {
+    final repo = repository();
+    await signIn(repo, 'patient@example.test');
+    final assessment = (await repo.fetchClinicalCases()).single;
+    await repo.submitAssessment(
+      id: assessment.id,
+      revision: assessment.revision,
+      input: assessment.input,
+    );
+    await signIn(repo, 'clinician@example.test');
+    final review = await repo.completePathway1ClinicianInput(
+      assessment: await repo.fetchClinicalCase(assessment.id),
+      input: completePathway1ClinicianInput,
+    );
+    await repo.recordClinicianDecision(
+      assessment: review,
+      decision: ClinicalCaseStatus.withheld,
+      notes: 'Please discuss other options at your next appointment.',
+    );
+
+    await signIn(repo, 'patient@example.test');
+    await mount(tester, repo);
+
+    expect(find.text('Outcome'), findsOneWidget);
+    expect(find.text('Recommendation withheld'), findsWidgets);
+    expect(find.text('Clinician-reviewed recommendation'), findsNothing);
+    expect(
+      find.text('Consider commencement of osteoanabolic therapy'),
+      findsNothing,
+    );
+    expect(find.text('Clinician message'), findsOneWidget);
+    expect(
+      find.text('Please discuss other options at your next appointment.'),
+      findsOneWidget,
+    );
   });
   testWidgets('patient can withdraw submitted assessment before editing', (
     tester,
@@ -462,12 +560,16 @@ void main() {
     );
 
     await mount(tester, repo);
-    expect(find.text('Waiting for clinician input'), findsOneWidget);
+    expect(find.text('Submitted — waiting for clinician'), findsOneWidget);
     expect(find.text('Assessment in progress'), findsOneWidget);
     expect(find.text('Continue current assessment'), findsNothing);
     expect(find.text('Withdraw and edit'), findsOneWidget);
 
-    await tester.tap(find.text('Withdraw and edit'));
+    await tapVisible(
+      tester,
+      find.text('Withdraw and edit'),
+      find.byType(ListView).last,
+    );
     await tester.pumpAndSettle();
     expect(find.text('Withdraw submission?'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
@@ -512,7 +614,7 @@ void main() {
     expect(resubmitted.status, ClinicalCaseStatus.clinicianInputRequired);
     expect(resubmitted.input.fractureSite, 'hip');
     expect(await repo.fetchClinicalCases(), hasLength(1));
-    expect(find.text('Waiting for clinician input'), findsOneWidget);
+    expect(find.text('Submitted — waiting for clinician'), findsOneWidget);
     expect(find.text('Withdraw and edit'), findsOneWidget);
   });
   testWidgets('logout removes protected navigation and returns to sign-in', (

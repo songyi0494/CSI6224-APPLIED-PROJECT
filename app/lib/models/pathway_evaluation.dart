@@ -10,11 +10,17 @@ class ReasoningTraceEntry {
   final Map<String, Object?> input;
   factory ReasoningTraceEntry.fromJson(Map<String, dynamic> j) =>
       ReasoningTraceEntry(
-        ruleId: j['rule_id'] as String,
+        ruleId: (j['rule_id'] ?? j['nodeId'] ?? 'unknown').toString(),
         matched: j['matched'] as bool?,
-        reason: j['reason'] as String,
+        reason: (j['reason'] ?? _liveReason(j)).toString(),
         input: Map<String, Object?>.from((j['input'] as Map?) ?? const {}),
       );
+
+  static String _liveReason(Map<String, dynamic> json) {
+    final next = json['nextNodeId'];
+    final type = json['nodeType']?.toString() ?? 'node';
+    return next == null ? 'Reached $type.' : 'Traversal continued to $next.';
+  }
 }
 
 class PathwayEvaluation {
@@ -34,28 +40,29 @@ class PathwayEvaluation {
   final List<ReasoningTraceEntry> trace;
   final List<String> missingInputs, warnings;
   bool get canApprove =>
-      pathway == 'PATHWAY1' &&
-      decision == 'action_taken' &&
+      (pathway == 'PATHWAY1' || pathway == 'PATHWAY2') &&
+      (decision == 'action_taken' || decision == 'complete') &&
       missingInputs.isEmpty &&
       actions.isNotEmpty;
   factory PathwayEvaluation.fromJson(
     Map<String, dynamic> j,
   ) => PathwayEvaluation(
-    pathway: j['pathway'] as String?,
-    decision: j['decision'] as String,
-    ruleVersion: j['rule_version'] as String,
-    routingReason: j['routing_reason'] as String,
-    actions: (j['actions'] as List)
+    pathway: (j['pathway'] ?? j['pathwayId']) as String?,
+    decision: (j['decision'] ?? j['status'] ?? 'complete').toString(),
+    ruleVersion: (j['rule_version'] ?? 'evaluate_pathway-v12').toString(),
+    routingReason: (j['routing_reason'] ?? 'Backend-driven pathway traversal')
+        .toString(),
+    actions: (j['actions'] as List? ?? const [])
         .map((a) => PathwayAction.fromJson(Map<String, dynamic>.from(a as Map)))
         .toList(),
-    trace: (j['trace'] as List)
+    trace: (j['trace'] as List? ?? const [])
         .map(
           (a) =>
               ReasoningTraceEntry.fromJson(Map<String, dynamic>.from(a as Map)),
         )
         .toList(),
-    missingInputs: List<String>.from(j['missing_inputs'] as List),
-    warnings: List<String>.from(j['warnings'] as List),
+    missingInputs: List<String>.from(j['missing_inputs'] as List? ?? const []),
+    warnings: List<String>.from(j['warnings'] as List? ?? const []),
   );
 }
 

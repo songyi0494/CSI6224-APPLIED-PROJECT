@@ -2,6 +2,7 @@ import '../models/app_user.dart';
 import '../models/clinical_case.dart';
 import '../models/clinical_input.dart';
 import '../models/pathway1_clinician_input.dart';
+import '../models/live_pathway.dart';
 import '../models/questionnaire.dart';
 
 class AppException implements Exception {
@@ -43,13 +44,26 @@ abstract class AppRepository {
   Future<List<AppUser>> pendingClinicians();
   Future<void> reviewClinician(String id, ClinicianApprovalStatus approval);
 
-  // preserve questionnaire authoring separately from the clinical assessment
-  Future<List<Questionnaire>> fetchQuestionnaires();
-  Future<Questionnaire> saveQuestionnaire(Questionnaire questionnaire);
-  Future<Questionnaire> publishQuestionnaire(String id);
-  Future<PatientResponse> submitPatientResponse({
-    required String questionnaireId,
-    required String patientName,
+  Future<QuestionnaireForm> fetchQuestionnaireForm();
+  Future<QuestionnaireResponse?> fetchQuestionnaireResponse({
+    required String patientId,
+  });
+  Future<LivePathwayResult> evaluatePathway({required String caseId});
+  Future<void> savePathwayAnswer({
+    required String caseId,
+    required String fieldKey,
+    required Object value,
+  });
+  Future<QuestionnaireResponse> submitQuestionnaireResponse({
     required Map<String, Object?> answers,
   });
+
+  // BACKEND CONTRACT PENDING: these preserve the existing builder in mock/UI
+  // mode only. Songyi's live schema has no questionnaire header or publish
+  // state, and custom-question production answer keys remain unresolved.
+  Future<List<MockQuestionnaireDraft>> fetchMockQuestionnaireDrafts();
+  Future<MockQuestionnaireDraft> saveMockQuestionnaireDraft(
+    MockQuestionnaireDraft questionnaire,
+  );
+  Future<MockQuestionnaireDraft> markMockQuestionnaireDraftReady(String id);
 }

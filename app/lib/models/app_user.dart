@@ -23,19 +23,30 @@ class AppUser {
       role == UserRole.clinician &&
       approvalStatus == ClinicianApprovalStatus.approved;
   String get sessionKey => '$id/${role.name}/${approvalStatus?.name}';
-  factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
-    id: json['id'] as String,
-    displayName: json['full_name'] as String,
-    email: json['email'] as String,
-    role: UserRole.values.byName(json['role'] as String),
-    approvalStatus: json['approval_status'] == null
-        ? null
-        : ClinicianApprovalStatus.values.byName(
-            json['approval_status'] as String,
-          ),
-    dateOfBirth: DateTime.tryParse(json['date_of_birth']?.toString() ?? ''),
-    sexAtBirth: json['sex_at_birth'] as String?,
-  );
+  factory AppUser.fromJson(
+    Map<String, dynamic> json, {
+    String? authenticatedEmail,
+  }) {
+    final fullName = json['full_name']?.toString().trim();
+    final profileEmail = json['email']?.toString().trim();
+    final approval = json['approval_status']?.toString();
+    return AppUser(
+      id: json['id'] as String,
+      displayName: fullName == null || fullName.isEmpty ? 'User' : fullName,
+      // The live profiles table has no email column. Auth remains the source
+      // of truth for the signed-in user's email at the repository boundary.
+      email: profileEmail == null || profileEmail.isEmpty
+          ? (authenticatedEmail ?? '')
+          : profileEmail,
+      role: UserRole.values.byName(json['role'] as String),
+      approvalStatus: approval == null
+          ? null
+          : ClinicianApprovalStatus.values.byName(approval),
+      dateOfBirth: DateTime.tryParse(json['date_of_birth']?.toString() ?? ''),
+      // Songyi's live profile contract names this column `gender`.
+      sexAtBirth: json['gender']?.toString(),
+    );
+  }
   AppUser withApproval(ClinicianApprovalStatus value) => AppUser(
     id: id,
     displayName: displayName,

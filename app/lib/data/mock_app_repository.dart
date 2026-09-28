@@ -6,6 +6,8 @@ import '../models/clinical_case.dart';
 import '../models/clinical_input.dart';
 import '../models/pathway1_clinician_input.dart';
 import '../models/pathway_evaluation.dart';
+import '../models/live_pathway.dart';
+import '../models/patient_questionnaire_catalog.dart';
 import '../models/questionnaire.dart';
 import 'app_repository.dart';
 
@@ -70,7 +72,8 @@ class MockAppRepository implements AppRepository {
   final Map<String, String> _passwords = {};
   final Map<String, Map<String, dynamic>> _cases = {};
   final Map<String, String> _assigned = {};
-  final List<Questionnaire> _questionnaires = [];
+  final List<MockQuestionnaireDraft> _questionnaireDrafts = [];
+  final Map<String, QuestionnaireResponse> _questionnaireResponses = {};
   String? _currentId;
   @override
   bool get isMock => true;
@@ -455,6 +458,390 @@ class MockAppRepository implements AppRepository {
   }
 
   @override
+  Future<void> savePathwayAnswer({
+    required String caseId,
+    required String fieldKey,
+    required Object value,
+  }) async {
+    _require(UserRole.clinician);
+    final definition = pathwayFactRegistry[fieldKey];
+    if (definition == null ||
+        (definition.kind == PathwayFactKind.boolean && value is! bool) ||
+        (definition.kind == PathwayFactKind.number && value is! num)) {
+      throw const AppException('This pathway answer has an unsupported type.');
+    }
+    final row = _cases[caseId];
+    if (row == null || row['status'] != 'in_progress') {
+      throw const AppException(
+        'Pathway answers can only be changed while the case is in progress.',
+      );
+    }
+    row['clinician_facts'] = Map<String, Object?>.from(
+      row['clinician_facts'] as Map? ?? const {},
+    )..[fieldKey] = value;
+    row['pathway_revision'] = (row['pathway_revision'] as int? ?? 0) + 1;
+    row['updated_at'] = DateTime.now().toUtc().toIso8601String();
+  }
+
+  @override
+  Future<LivePathwayResult> evaluatePathway({required String caseId}) async {
+    _require(UserRole.clinician);
+    final row = _cases[caseId];
+    if (row == null) throw const AppException('Assessment not available.');
+    if (row['status'] == 'evaluated') {
+      return LivePathwayResult.fromJson(
+        Map<String, dynamic>.from(row['rule_evaluation'] as Map),
+      );
+    }
+    if (!{'clinician_input_required', 'in_progress'}.contains(row['status'])) {
+      throw const AppException(
+        'This case is not available for pathway evaluation.',
+      );
+    }
+    row['status'] = 'in_progress';
+    _assigned[caseId] = _user.id;
+    final result = _mockLiveEvaluate(
+      Map<String, Object?>.from(row['clinician_facts'] as Map? ?? const {}),
+    );
+    row['pathway'] = result.pathwayId;
+    row['updated_at'] = DateTime.now().toUtc().toIso8601String();
+    if (result is CompletedPathwayEvaluation) {
+      final json = _liveResultJson(result);
+      row['status'] = 'evaluated';
+      row['rule_evaluation'] = json;
+      row['evaluation'] = json;
+      row['evaluation_id'] = newId();
+    }
+    return result;
+  }
+
+  LivePathwayResult _mockLiveEvaluate(Map<String, Object?> facts) {
+    final trace = <LivePathwayTraceEntry>[];
+    PathwayQuestionStep ask(
+      String pathway,
+      String node,
+      String prompt,
+      List<String> facts,
+    ) => PathwayQuestionStep(
+      pathwayId: pathway,
+      nodeId: node,
+      question: prompt,
+      requiredFacts: facts,
+      trace: List.unmodifiable(trace),
+    );
+    void visit(String pathway, String node, bool matched, String next) =>
+        trace.add(
+          LivePathwayTraceEntry(
+            nodeId: node,
+            pathwayId: pathway,
+            nodeType: 'decision',
+            matched: matched,
+            nextNodeId: next,
+          ),
+        );
+    CompletedPathwayEvaluation finish(String pathway, String action) {
+      trace.add(
+        LivePathwayTraceEntry(
+          nodeId: 'RESULT_${trace.length + 1}',
+          pathwayId: pathway,
+          nodeType: 'result',
+          actionsTriggered: [action],
+        ),
+      );
+      return CompletedPathwayEvaluation(
+        pathwayId: pathway,
+        actions: [
+          {'type': 'recommendation', 'recommendation': action},
+        ],
+        trace: List.unmodifiable(trace),
+      );
+    }
+
+    bool anyMissing(List<String> keys) =>
+        keys.any((key) => !facts.containsKey(key));
+
+    if (!facts.containsKey('eGFR')) {
+      return ask(
+        'PATHWAY1',
+        'RENAL_DYSFUNCTION',
+        "What is the patient's eGFR value? (Unit: mL/min)",
+        const ['eGFR'],
+      );
+    }
+    final renalOk = (facts['eGFR'] as num) > 30;
+    visit(
+      'PATHWAY1',
+      'RENAL_DYSFUNCTION',
+      renalOk,
+      renalOk ? 'ON_OSTEOPOROSIS_TREATMENT' : 'RESULT_RENAL_REVIEW',
+    );
+    if (!renalOk) {
+      return finish(
+        'PATHWAY1',
+        'Refer for specialist review of renal function and treatment options.',
+      );
+    }
+    if (!facts.containsKey('osteoporosisTreatmentStatus')) {
+      return ask(
+        'PATHWAY1',
+        'ON_OSTEOPOROSIS_TREATMENT',
+        'Is the patient currently on osteoporosis treatment?',
+        const ['osteoporosisTreatmentStatus'],
+      );
+    }
+    final treated = facts['osteoporosisTreatmentStatus'] as bool;
+    visit(
+      'PATHWAY1',
+      'ON_OSTEOPOROSIS_TREATMENT',
+      treated,
+      treated ? 'ON_ANTIRESORPTIVE_TREATMENT' : 'RESIDENTIAL_OR_FRAILTY',
+    );
+    if (treated) return _mockPathway2(facts, trace);
+
+    const residential = [
+      'liveInResidentialCare',
+      'clinicalFrailtyScore',
+      'lifeExpectancy',
+    ];
+    if (anyMissing(residential)) {
+      return ask(
+        'PATHWAY1',
+        'RESIDENTIAL_OR_FRAILTY',
+        'Does the patient live in residential care, have severe frality, or have a life expectancy of 7 years or less?',
+        residential,
+      );
+    }
+    final vulnerable =
+        facts['liveInResidentialCare'] == true ||
+        (facts['clinicalFrailtyScore'] as num) >= 7 ||
+        (facts['lifeExpectancy'] as num) < 7;
+    visit(
+      'PATHWAY1',
+      'RESIDENTIAL_OR_FRAILTY',
+      vulnerable,
+      vulnerable ? 'RESULT_INDIVIDUAL_REVIEW' : 'ADHERENCE_CONCERN',
+    );
+    if (vulnerable) {
+      return finish(
+        'PATHWAY1',
+        'Use individualised clinical review and shared decision-making.',
+      );
+    }
+    const adherence = ['knownPoorMedicationAdherence', 'cognitiveImpairment'];
+    if (anyMissing(adherence)) {
+      return ask(
+        'PATHWAY1',
+        'ADHERENCE_CONCERN',
+        'Is the patient able to adhere to their treatment plan? (Please answer the following questions.)',
+        adherence,
+      );
+    }
+    final concern =
+        facts['knownPoorMedicationAdherence'] == true ||
+        facts['cognitiveImpairment'] == true;
+    visit(
+      'PATHWAY1',
+      'ADHERENCE_CONCERN',
+      concern,
+      concern ? 'RESULT_ADHERENCE_SUPPORT' : 'DXA_SCAN_AVAILABILITY',
+    );
+    if (concern) {
+      return finish(
+        'PATHWAY1',
+        'Address adherence barriers and provide an appropriate supported plan.',
+      );
+    }
+    if (!facts.containsKey('testAvailability')) {
+      return ask(
+        'PATHWAY1',
+        'DXA_SCAN_AVAILABILITY',
+        'Can the patient undergo a BMD DXA scan? (Select Yes if the patient has had a scan within prior 2 years)',
+        const ['testAvailability'],
+      );
+    }
+    final testAvailable = facts['testAvailability'] as bool;
+    visit(
+      'PATHWAY1',
+      'DXA_SCAN_AVAILABILITY',
+      testAvailable,
+      testAvailable ? 'T_SCORE_CHECK' : 'RESULT_NO_DXA',
+    );
+    if (!testAvailable) {
+      return finish(
+        'PATHWAY1',
+        'Use clinical risk assessment when DXA is not available.',
+      );
+    }
+    const tScores = ['femoralNeckTscore', 'hipTscore', 'lumbarSpineTscore'];
+    if (anyMissing(tScores)) {
+      return ask(
+        'PATHWAY1',
+        'T_SCORE_CHECK',
+        "What are the patient's T-score for the femoral neck, hip, and lumbar spine?",
+        tScores,
+      );
+    }
+    final low = tScores.any((key) => (facts[key] as num) <= -2.5);
+    visit(
+      'PATHWAY1',
+      'T_SCORE_CHECK',
+      low,
+      low ? 'RECENT_MAJOR_FRACTURES' : 'RESULT_MONITOR',
+    );
+    if (!low) {
+      return finish(
+        'PATHWAY1',
+        'Continue risk-factor management and monitoring.',
+      );
+    }
+    if (!facts.containsKey('hipVertebralOrMultipleFracturesInLast24M')) {
+      return ask(
+        'PATHWAY1',
+        'RECENT_MAJOR_FRACTURES',
+        'Has the patient had a hip fracture, vertebral fracture, or fractures at 2 or more sites in last 24 months?',
+        const ['hipVertebralOrMultipleFracturesInLast24M'],
+      );
+    }
+    final recent = facts['hipVertebralOrMultipleFracturesInLast24M'] as bool;
+    visit(
+      'PATHWAY1',
+      'RECENT_MAJOR_FRACTURES',
+      recent,
+      recent ? 'RESULT_VERY_HIGH_RISK' : 'HIGH_RISK_CHECK',
+    );
+    if (recent) {
+      return finish(
+        'PATHWAY1',
+        'Refer for very-high-risk osteoporosis treatment review.',
+      );
+    }
+    const highRisk = [
+      'femoralNeckTscore',
+      'hipTscore',
+      'lumbarSpineTscore',
+      'recentFractureWithin2Y',
+      'historyOf2orMoreFractures',
+      'clinicalRiskFactors',
+      'FRAX10YmajorOsteoporoticFractureRiskPercent',
+      'FRAX10YmajorHipFractureRiskPercent',
+    ];
+    if (anyMissing(highRisk)) {
+      return ask(
+        'PATHWAY1',
+        'HIGH_RISK_CHECK',
+        'Is the patient at very high risk? (Please answer the following questions.)',
+        highRisk,
+      );
+    }
+    return finish(
+      'PATHWAY1',
+      'Review osteoporosis treatment options with the patient.',
+    );
+  }
+
+  LivePathwayResult _mockPathway2(
+    Map<String, Object?> facts,
+    List<LivePathwayTraceEntry> trace,
+  ) {
+    const nodes = <(String, String, String)>[
+      (
+        'ON_ANTIRESORPTIVE_TREATMENT',
+        'antiresorptiveTreatmentStatus',
+        'Is the patient currently on antiresorptive treatment?',
+      ),
+      (
+        'ANTIRESORPTIVE_DURATION',
+        'antiresorptiveTreatmentDuration',
+        'Has the patient been receiving their pre-existing antiresorptive treatment for 12 months or longer?',
+      ),
+      (
+        'TREATMENT_ADHERENCE',
+        'adheredToTheTreatment',
+        'Has the patient adhered to the treatment plan?',
+      ),
+      (
+        'SYMPTOMATIC_FRACTURE',
+        'symptomaticFractureInLast12M',
+        'Has the patient had 1 or more symptomatic fractures in last 12 months?',
+      ),
+      (
+        'MULTIPLE_FRACTURES',
+        'multipleFractures',
+        'Has the patient had 2 or more fractures? (Check for occult vertebral fractures in previous chest or abdomen scan)',
+      ),
+      (
+        'LOW_BMD',
+        'lowBMD',
+        'Does the patient have a BMD T-score below -3.0 at any site?',
+      ),
+      (
+        'PRIOR_MI_OR_STROKE',
+        'priorMIorStroke',
+        'Does the patient have a history of myocardial infarction(MI) or stroke?',
+      ),
+      (
+        'SEQUENCING_FROM_DENOSUMAB',
+        'sequencingFromDenosumab',
+        'Sequencing from denosumab?',
+      ),
+    ];
+    for (final node in nodes) {
+      if (!facts.containsKey(node.$2)) {
+        return PathwayQuestionStep(
+          pathwayId: 'PATHWAY2',
+          nodeId: node.$1,
+          question: node.$3,
+          requiredFacts: [node.$2],
+          trace: List.unmodifiable(trace),
+        );
+      }
+      trace.add(
+        LivePathwayTraceEntry(
+          nodeId: node.$1,
+          pathwayId: 'PATHWAY2',
+          nodeType: 'decision',
+          matched: facts[node.$2] as bool,
+          nextNodeId: null,
+        ),
+      );
+    }
+    const action = 'Review ongoing treatment and sequencing options.';
+    trace.add(
+      const LivePathwayTraceEntry(
+        nodeId: 'RESULT_P2',
+        pathwayId: 'PATHWAY2',
+        nodeType: 'result',
+        actionsTriggered: [action],
+      ),
+    );
+    return CompletedPathwayEvaluation(
+      pathwayId: 'PATHWAY2',
+      actions: const [
+        {'type': 'recommendation', 'recommendation': action},
+      ],
+      trace: List.unmodifiable(trace),
+    );
+  }
+
+  Map<String, dynamic> _liveResultJson(CompletedPathwayEvaluation result) => {
+    'status': 'complete',
+    'pathwayId': result.pathwayId,
+    'actions': result.actions,
+    'trace': result.trace
+        .map(
+          (entry) => {
+            'nodeId': entry.nodeId,
+            'pathwayId': entry.pathwayId,
+            'nodeType': entry.nodeType,
+            'matched': entry.matched,
+            'nextNodeId': entry.nextNodeId,
+            'actionsTriggered': entry.actionsTriggered,
+          },
+        )
+        .toList(),
+  };
+
+  @override
   Future<void> recordClinicianDecision({
     required ClinicalCase assessment,
     required ClinicalCaseStatus decision,
@@ -522,38 +909,116 @@ class MockAppRepository implements AppRepository {
   }
 
   @override
-  Future<List<Questionnaire>> fetchQuestionnaires() async {
-    _require(UserRole.clinician);
-    return List.unmodifiable(_questionnaires);
+  Future<QuestionnaireForm> fetchQuestionnaireForm() async {
+    if (_user.role != UserRole.patient && !_user.isClinician) {
+      throw const AppException('You cannot access this questionnaire.');
+    }
+    return buildMaturePatientForm(const [
+      QuestionnaireQuestion(
+        id: 'system-sex-row',
+        fieldKey: 'sex',
+        questionText: 'What is your sex?',
+        type: QuestionType.singleChoice,
+        options: ['Female', 'Male'],
+        displayOrder: 1,
+      ),
+      QuestionnaireQuestion(
+        id: 'system-postmenopausal-row',
+        fieldKey: 'postmenopausal',
+        questionText: 'Are you postmenopausal?',
+        type: QuestionType.singleChoice,
+        options: ['Yes', 'No'],
+        displayOrder: 2,
+      ),
+      QuestionnaireQuestion(
+        id: 'system-dairy-row',
+        fieldKey: 'dietaryDairyServings',
+        questionText: 'How many servings of dairy do you have per day?',
+        type: QuestionType.numeric,
+        displayOrder: 3,
+      ),
+      QuestionnaireQuestion(
+        id: 'system-smoking-row',
+        fieldKey: 'smoking',
+        questionText: 'Do you currently smoke?',
+        type: QuestionType.singleChoice,
+        options: ['Yes', 'No'],
+        displayOrder: 4,
+      ),
+      QuestionnaireQuestion(
+        id: 'system-alcohol-row',
+        fieldKey: 'alcohol',
+        questionText: 'Do you currently drink alcohol?',
+        type: QuestionType.singleChoice,
+        options: ['Yes', 'No'],
+        displayOrder: 5,
+      ),
+    ]);
   }
 
   @override
-  Future<Questionnaire> saveQuestionnaire(Questionnaire q) async {
+  Future<QuestionnaireResponse> submitQuestionnaireResponse({
+    required Map<String, Object?> answers,
+  }) async {
+    _require(UserRole.patient);
+    final existing = _questionnaireResponses[_user.id];
+    final response = QuestionnaireResponse(
+      id: newId(),
+      patientId: _user.id,
+      status: QuestionnaireResponseStatus.submitted,
+      revision: (existing?.revision ?? 0) + 1,
+      submittedAt: DateTime.now().toUtc(),
+      answers: Map.unmodifiable(answers),
+    );
+    _questionnaireResponses[_user.id] = response;
+    return response;
+  }
+
+  @override
+  Future<QuestionnaireResponse?> fetchQuestionnaireResponse({
+    required String patientId,
+  }) async {
+    if (_user.role == UserRole.patient && _user.id != patientId) {
+      throw const AppException('You cannot access this questionnaire.');
+    }
+    if (_user.role == UserRole.clinician && !_user.isClinician) {
+      throw const AppException('You cannot access this questionnaire.');
+    }
+    return _questionnaireResponses[patientId];
+  }
+
+  @override
+  Future<List<MockQuestionnaireDraft>> fetchMockQuestionnaireDrafts() async {
     _require(UserRole.clinician);
-    final saved = q.id.isEmpty ? q.copyWith(id: newId()) : q;
-    _questionnaires.removeWhere((x) => x.id == saved.id);
-    _questionnaires.add(saved);
+    return List.unmodifiable(_questionnaireDrafts);
+  }
+
+  @override
+  Future<MockQuestionnaireDraft> saveMockQuestionnaireDraft(
+    MockQuestionnaireDraft q,
+  ) async {
+    _require(UserRole.clinician);
+    final saved = q.presentationId.isEmpty
+        ? q.copyWith(presentationId: newId())
+        : q;
+    _questionnaireDrafts.removeWhere(
+      (x) => x.presentationId == saved.presentationId,
+    );
+    _questionnaireDrafts.add(saved);
     return saved;
   }
 
   @override
-  Future<Questionnaire> publishQuestionnaire(String id) async {
+  Future<MockQuestionnaireDraft> markMockQuestionnaireDraftReady(
+    String id,
+  ) async {
     _require(UserRole.clinician);
-    return saveQuestionnaire(
-      _questionnaires
-          .firstWhere((q) => q.id == id)
-          .copyWith(status: QuestionnaireStatus.published),
+    return saveMockQuestionnaireDraft(
+      _questionnaireDrafts
+          .firstWhere((q) => q.presentationId == id)
+          .copyWith(state: MockQuestionnaireDraftState.ready),
     );
   }
-
-  @override
-  Future<PatientResponse> submitPatientResponse({
-    required String questionnaireId,
-    required String patientName,
-    required Map<String, Object?> answers,
-  }) async => throw const AppException(
-    'Please use the clinical assessment to submit health information.',
-  );
 
   static Future<PathwayEvaluation> _evaluateLocally(ClinicalInput input) async {
     final facts = input.toFacts();

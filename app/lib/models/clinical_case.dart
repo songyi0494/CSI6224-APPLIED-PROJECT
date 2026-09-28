@@ -17,6 +17,10 @@ class ClinicalCase {
     this.evaluation,
     this.evaluationId,
     this.clinicianInput,
+    this.clinicianFacts = const {},
+    this.pathwayRevision = 0,
+    this.assignedClinicianId,
+    this.questionnaireResponseId,
     this.decisionNotes,
     this.approvedActions = const [],
   });
@@ -30,27 +34,39 @@ class ClinicalCase {
   final String? routingReason, evaluationId, decisionNotes;
   final PathwayEvaluation? evaluation;
   final Pathway1ClinicianInput? clinicianInput;
+  final Map<String, Object?> clinicianFacts;
+  final int pathwayRevision;
+  final String? assignedClinicianId, questionnaireResponseId;
   final List<PathwayAction> approvedActions;
   bool get canEdit => status == ClinicalCaseStatus.draft;
   bool get needsClinicianInput =>
-      status == ClinicalCaseStatus.clinicianInputRequired;
+      status == ClinicalCaseStatus.clinicianInputRequired ||
+      status == ClinicalCaseStatus.inProgress;
   bool get canWithdrawSubmission =>
       status == ClinicalCaseStatus.clinicianInputRequired &&
       clinicianInput == null &&
       evaluation == null;
   bool get canReview =>
       status == ClinicalCaseStatus.awaitingReview ||
-      status == ClinicalCaseStatus.manualReview;
+      status == ClinicalCaseStatus.manualReview ||
+      status == ClinicalCaseStatus.evaluated;
   bool get canOpenForClinician => needsClinicianInput || canReview;
   factory ClinicalCase.fromJson(Map<String, dynamic> j) => ClinicalCase(
     id: j['id'] as String,
     patientId: j['patient_id'] as String,
-    patientName: j['patient_name'] as String,
+    patientName:
+        (j['patient_name'] ??
+                (j['patient'] as Map?)?['full_name'] ??
+                (j['profiles'] as Map?)?['full_name'] ??
+                'Patient')
+            .toString(),
     input: ClinicalInput.fromFacts(
-      Map<String, dynamic>.from(j['facts'] as Map),
+      Map<String, dynamic>.from(
+        (j['facts'] ?? j['patient_facts'] ?? const {}) as Map,
+      ),
     ),
     status: ClinicalCaseStatus.values.firstWhere((s) => s.value == j['status']),
-    revision: j['revision'] as int,
+    revision: (j['revision'] as num?)?.toInt() ?? 0,
     updatedAt: DateTime.parse(j['updated_at'] as String),
     submittedAt: DateTime.tryParse(j['submitted_at']?.toString() ?? ''),
     pathway: j['pathway'] == 'PATHWAY1'
@@ -61,11 +77,19 @@ class ClinicalCase {
     routingReason: j['routing_reason'] as String?,
     evaluationId: j['evaluation_id'] as String?,
     clinicianInput: _clinicianInputFromJson(j['clinician_facts']),
+    clinicianFacts: Map<String, Object?>.from(
+      (j['clinician_facts'] as Map?) ?? const {},
+    ),
+    pathwayRevision: (j['pathway_revision'] as num?)?.toInt() ?? 0,
+    assignedClinicianId: j['assigned_clinician_id'] as String?,
+    questionnaireResponseId: j['questionnaire_response_id'] as String?,
     decisionNotes: j['decision_notes'] as String?,
-    evaluation: j['evaluation'] == null
+    evaluation: (j['evaluation'] ?? j['rule_evaluation']) == null
         ? null
         : PathwayEvaluation.fromJson(
-            Map<String, dynamic>.from(j['evaluation'] as Map),
+            Map<String, dynamic>.from(
+              (j['evaluation'] ?? j['rule_evaluation']) as Map,
+            ),
           ),
     approvedActions: (j['approved_actions'] as List? ?? [])
         .map((a) => PathwayAction.fromJson(Map<String, dynamic>.from(a as Map)))
@@ -86,8 +110,10 @@ enum ClinicalCaseStatus {
   draft('draft', 'Draft'),
   clinicianInputRequired(
     'clinician_input_required',
-    'Waiting for clinician input',
+    'Submitted — waiting for clinician',
   ),
+  inProgress('in_progress', 'Clinician review in progress'),
+  evaluated('evaluated', 'Assessment completed'),
   awaitingReview('awaiting_review', 'Waiting for clinician review'),
   manualReview('manual_review', 'Further review needed'),
   approved('approved', 'Reviewed and approved'),

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../data/app_repository.dart';
 import '../models/clinical_case.dart';
-import '../models/pathway1_clinician_input.dart';
 import '../utils/clinical_labels.dart';
 import '../utils/clinical_trace_presentation.dart';
 import '../widgets/async_panel.dart';
+import 'pathway_question_screen.dart';
 
 class RecommendationReviewScreen extends StatefulWidget {
   const RecommendationReviewScreen({
@@ -22,55 +22,13 @@ class RecommendationReviewScreen extends StatefulWidget {
 class _RecommendationReviewScreenState
     extends State<RecommendationReviewScreen> {
   final _notes = TextEditingController();
-  final _clinicianForm = GlobalKey<FormState>();
-  final Map<String, TextEditingController> _clinicalNumbers = {
-    'eGFR': TextEditingController(),
-    'clinicalFrailtyScore': TextEditingController(),
-    'lifeExpectancy': TextEditingController(),
-    'tScoreValue': TextEditingController(),
-    'yearsSinceMenopause': TextEditingController(),
-  };
-  final Map<String, Object?> _clinicalAnswers = {};
   ClinicalCaseStatus? _decision;
   bool _saving = false;
   String? _error;
-  String? _clinicalInputKey;
   @override
   void dispose() {
     _notes.dispose();
-    for (final controller in _clinicalNumbers.values) {
-      controller.dispose();
-    }
     super.dispose();
-  }
-
-  void _ensureClinicalInputLoaded(ClinicalCase assessment) {
-    final key =
-        '${assessment.id}:${assessment.revision}:${assessment.updatedAt.toIso8601String()}';
-    if (_clinicalInputKey == key) return;
-    _clinicalInputKey = key;
-    final input = assessment.clinicianInput ?? const Pathway1ClinicianInput();
-    _clinicalNumbers['eGFR']!.text = input.egfr?.toString() ?? '';
-    _clinicalNumbers['clinicalFrailtyScore']!.text =
-        input.clinicalFrailtyScore?.toString() ?? '';
-    _clinicalNumbers['lifeExpectancy']!.text =
-        input.lifeExpectancy?.toString() ?? '';
-    _clinicalNumbers['tScoreValue']!.text = input.tScoreValue?.toString() ?? '';
-    _clinicalNumbers['yearsSinceMenopause']!.text =
-        input.yearsSinceMenopause?.toString() ?? '';
-    _clinicalAnswers
-      ..clear()
-      ..addAll({
-        'knownPoorMedicationAdherence': input.knownPoorMedicationAdherence,
-        'cognitiveImpairment': input.cognitiveImpairment,
-        'dxaDoneWithinPrevious2Years': input.dxaDoneWithinPrevious2Years,
-        'dxaImpractical': input.dxaImpractical,
-        'tScoreSite': input.tScoreSite,
-        'hipVertebralOrMultipleFracturesInLast24M':
-            input.hipVertebralOrMultipleFracturesInLast24M,
-        'clinicianConfirmedVeryHighRisk': input.clinicianConfirmedVeryHighRisk,
-        'robustWoman': input.robustWoman,
-      });
   }
 
   Future<void> _save(ClinicalCase a, VoidCallback reload) async {
@@ -108,69 +66,6 @@ class _RecommendationReviewScreenState
     }
   }
 
-  Future<void> _completeClinicalInput(
-    ClinicalCase assessment,
-    VoidCallback reload,
-  ) async {
-    if (!_clinicianForm.currentState!.validate()) return;
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    try {
-      await widget.repository.completePathway1ClinicianInput(
-        assessment: assessment,
-        input: _clinicianInputFromForm(),
-      );
-      if (mounted) {
-        reload();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Clinical input saved.')));
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(
-          () => _error = e is AppException
-              ? e.message
-              : 'Clinical input could not be saved. Please try again.',
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  Pathway1ClinicianInput _clinicianInputFromForm() => Pathway1ClinicianInput(
-    egfr: _doubleValue('eGFR'),
-    clinicalFrailtyScore: _intValue('clinicalFrailtyScore'),
-    lifeExpectancy: _doubleValue('lifeExpectancy'),
-    knownPoorMedicationAdherence:
-        _clinicalAnswers['knownPoorMedicationAdherence'] as bool?,
-    cognitiveImpairment: _clinicalAnswers['cognitiveImpairment'] as bool?,
-    dxaDoneWithinPrevious2Years:
-        _clinicalAnswers['dxaDoneWithinPrevious2Years'] as bool?,
-    dxaImpractical: _clinicalAnswers['dxaImpractical'] as bool?,
-    tScoreValue: _doubleValue('tScoreValue'),
-    tScoreSite: _clinicalAnswers['tScoreSite'] as String?,
-    hipVertebralOrMultipleFracturesInLast24M:
-        _clinicalAnswers['hipVertebralOrMultipleFracturesInLast24M'] as bool?,
-    clinicianConfirmedVeryHighRisk:
-        _clinicalAnswers['clinicianConfirmedVeryHighRisk'] as bool?,
-    yearsSinceMenopause: _doubleValue('yearsSinceMenopause'),
-    robustWoman: _clinicalAnswers['robustWoman'] as bool?,
-  );
-
-  double? _doubleValue(String key) {
-    final raw = _clinicalNumbers[key]!.text.trim();
-    return raw.isEmpty ? null : double.parse(raw);
-  }
-
-  int? _intValue(String key) {
-    final raw = _clinicalNumbers[key]!.text.trim();
-    return raw.isEmpty ? null : int.parse(raw);
-  }
-
   Widget _card(String title, List<Widget> content) => Padding(
     padding: const EdgeInsets.only(bottom: 16),
     child: Card(
@@ -188,135 +83,63 @@ class _RecommendationReviewScreenState
     ),
   );
 
-  Widget _number(String key, {bool signed = false, bool whole = false}) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: TextFormField(
-          controller: _clinicalNumbers[key],
-          decoration: InputDecoration(
-            labelText: clinicalLabel(key),
-            hintText: 'Leave blank if not confirmed',
-          ),
-          keyboardType: TextInputType.numberWithOptions(
-            decimal: !whole,
-            signed: signed,
-          ),
-          validator: (value) {
-            if (value == null || value.trim().isEmpty) return null;
-            final number = double.tryParse(value);
-            if (number == null || !number.isFinite) {
-              return 'Enter a valid number';
-            }
-            if (whole && int.tryParse(value) == null) {
-              return 'Enter a whole number';
-            }
-            if (!signed && number < 0) return 'Enter zero or a positive number';
-            return null;
-          },
+  Widget _clinicalInputCard(
+    ClinicalCase assessment,
+    VoidCallback reload,
+  ) => _card('Pathway Assessment', [
+    const Text(
+      'Confirm one clinical fact at a time. Patient-reported answers are not promoted to clinician-confirmed facts.',
+    ),
+    const SizedBox(height: 12),
+    FilledButton.icon(
+      onPressed: _saving
+          ? null
+          : () => _openPathwayQuestions(assessment, reload),
+      icon: const Icon(Icons.play_arrow),
+      label: Text(
+        assessment.clinicianFacts.isEmpty
+            ? 'Start guided pathway questions'
+            : 'Continue guided pathway questions',
+      ),
+    ),
+  ]);
+
+  Future<void> _openPathwayQuestions(
+    ClinicalCase assessment,
+    VoidCallback reload,
+  ) async {
+    final completed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute<bool>(
+        builder: (_) => PathwayQuestionScreen(
+          caseId: assessment.id,
+          repository: widget.repository,
         ),
+      ),
+    );
+    if (completed == true && mounted) {
+      reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pathway evaluation completed.')),
       );
-
-  Widget _boolean(String key) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
-    child: DropdownButtonFormField<String>(
-      initialValue: _clinicalAnswers[key] == null
-          ? 'unknown'
-          : _clinicalAnswers[key] == true
-          ? 'yes'
-          : 'no',
-      decoration: InputDecoration(labelText: clinicalLabel(key)),
-      isExpanded: true,
-      items: const [
-        DropdownMenuItem(
-          value: 'unknown',
-          child: Text('Not yet assessed / unknown'),
-        ),
-        DropdownMenuItem(value: 'yes', child: Text('Yes')),
-        DropdownMenuItem(value: 'no', child: Text('No')),
-      ],
-      onChanged: _saving
-          ? null
-          : (value) => setState(
-              () => _clinicalAnswers[key] = value == 'yes'
-                  ? true
-                  : value == 'no'
-                  ? false
-                  : null,
-            ),
-    ),
-  );
-
-  Widget _tScoreSite() => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
-    child: DropdownButtonFormField<String>(
-      initialValue: _clinicalAnswers['tScoreSite'] as String?,
-      decoration: InputDecoration(labelText: clinicalLabel('tScoreSite')),
-      isExpanded: true,
-      items: const [
-        DropdownMenuItem(value: 'femoral_neck', child: Text('Femoral neck')),
-        DropdownMenuItem(value: 'hip', child: Text('Hip')),
-        DropdownMenuItem(value: 'lumbar_spine', child: Text('Lumbar spine')),
-      ],
-      onChanged: _saving
-          ? null
-          : (value) => setState(() => _clinicalAnswers['tScoreSite'] = value),
-    ),
-  );
-
-  Widget _clinicalInputCard(ClinicalCase assessment, VoidCallback reload) {
-    final missing = assessment.evaluation?.missingInputs ?? const <String>[];
-    return _card('Clinician clinical input', [
-      const Text(
-        'Enter clinical-record facts before running the Pathway 1 evaluator.',
-      ),
-      const SizedBox(height: 12),
-      Form(
-        key: _clinicianForm,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _number('eGFR'),
-            _number('clinicalFrailtyScore', whole: true),
-            _number('lifeExpectancy'),
-            _boolean('knownPoorMedicationAdherence'),
-            _boolean('cognitiveImpairment'),
-            _boolean('dxaImpractical'),
-            _boolean('dxaDoneWithinPrevious2Years'),
-            _number('tScoreValue', signed: true),
-            _tScoreSite(),
-            _boolean('hipVertebralOrMultipleFracturesInLast24M'),
-            _number('yearsSinceMenopause'),
-            if (missing.contains('isRobustWoman')) _boolean('robustWoman'),
-            if (missing.contains('highRisk'))
-              _boolean('clinicianConfirmedVeryHighRisk'),
-          ],
-        ),
-      ),
-      if (_error != null)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Text(
-            _error!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-        ),
-      Wrap(
-        spacing: 12,
-        children: [
-          FilledButton(
-            onPressed: _saving
-                ? null
-                : () => _completeClinicalInput(assessment, reload),
-            child: Text(_saving ? 'Saving...' : 'Run Pathway 1 evaluation'),
-          ),
-          OutlinedButton(
-            onPressed: _saving ? null : reload,
-            child: const Text('Reload assessment'),
-          ),
-        ],
-      ),
-    ]);
+    }
   }
+
+  Widget _decisionChoice({
+    required ClinicalCaseStatus decision,
+    required String label,
+    required IconData icon,
+  }) => ChoiceChip(
+    avatar: Icon(icon, size: 18),
+    label: Text(label),
+    selected: _decision == decision,
+    onSelected: _saving
+        ? null
+        : (selected) => setState(() {
+            _decision = selected ? decision : null;
+            _error = null;
+          }),
+  );
 
   Widget _traceTile(ClinicalCase assessment, int index) {
     final trace = assessment.evaluation!.trace[index];
@@ -350,9 +173,85 @@ class _RecommendationReviewScreenState
     );
   }
 
+  Widget _decisionCard(
+    ClinicalCase assessment,
+    VoidCallback reload,
+  ) => _card('Clinician Decision', [
+    const Text('Select a decision'),
+    const SizedBox(height: 12),
+    Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        if (assessment.evaluation?.canApprove == true)
+          _decisionChoice(
+            decision: ClinicalCaseStatus.approved,
+            label: 'Approve',
+            icon: Icons.check_circle_outline,
+          ),
+        _decisionChoice(
+          decision: ClinicalCaseStatus.withheld,
+          label: 'Withhold',
+          icon: Icons.block_outlined,
+        ),
+        _decisionChoice(
+          decision: ClinicalCaseStatus.needsMoreInfo,
+          label: 'Request more information',
+          icon: Icons.help_outline,
+        ),
+        _decisionChoice(
+          decision: ClinicalCaseStatus.followUpArranged,
+          label: 'Arrange follow-up',
+          icon: Icons.event_outlined,
+        ),
+      ],
+    ),
+    const SizedBox(height: 16),
+    TextField(
+      controller: _notes,
+      minLines: 3,
+      maxLines: 6,
+      decoration: const InputDecoration(
+        labelText: 'Clinical notes',
+        helperText:
+            'These notes will be shown to the patient. Include the request or follow-up details.',
+      ),
+    ),
+    if (_error != null)
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text(
+          _error!,
+          style: TextStyle(color: Theme.of(context).colorScheme.error),
+        ),
+      ),
+    const SizedBox(height: 16),
+    Wrap(
+      spacing: 12,
+      children: [
+        FilledButton(
+          onPressed: _saving ? null : () => _save(assessment, reload),
+          child: Text(_saving ? 'Saving...' : 'Save decision'),
+        ),
+        OutlinedButton(
+          onPressed: _saving
+              ? null
+              : () {
+                  setState(() {
+                    _decision = null;
+                    _error = null;
+                  });
+                  reload();
+                },
+          child: const Text('Reload assessment'),
+        ),
+      ],
+    ),
+  ]);
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Review assessment')),
+    appBar: AppBar(title: const Text('Clinical assessment result')),
     body: SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Center(
@@ -361,19 +260,18 @@ class _RecommendationReviewScreenState
           child: AsyncPanel<ClinicalCase>(
             load: () => widget.repository.fetchClinicalCase(widget.caseId),
             builder: (a, reload) {
-              _ensureClinicalInputLoaded(a);
               final evaluation = a.evaluation;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _card('Patient details', [
+                  _card('Assessment Result', [
                     Text(a.patientName),
                     Text('Assessment revision ${a.revision}'),
                     Text(a.status.label),
                     if (a.submittedAt != null)
                       Text('Submitted ${formatDate(a.submittedAt!)}'),
                   ]),
-                  _card('Selected pathway', [
+                  _card('Pathway Result', [
                     Text(
                       a.pathway == ClinicalPathway.pathway1
                           ? 'Pathway 1 — Treatment naïve'
@@ -386,10 +284,6 @@ class _RecommendationReviewScreenState
                       a.routingReason ??
                           'More treatment information is needed.',
                     ),
-                    if (a.pathway == ClinicalPathway.pathway2)
-                      const Text(
-                        'Pathway 2 integration is not yet available. A manual clinical review is required.',
-                      ),
                   ]),
                   _card('Patient-submitted information', [
                     for (final entry in a.input.toFacts().entries)
@@ -401,9 +295,9 @@ class _RecommendationReviewScreenState
                           ),
                         ),
                   ]),
-                  if (a.clinicianInput != null)
+                  if (a.clinicianFacts.isNotEmpty)
                     _card('Clinician-entered facts', [
-                      for (final entry in a.clinicianInput!.toJson().entries)
+                      for (final entry in a.clinicianFacts.entries)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Text(
@@ -412,7 +306,7 @@ class _RecommendationReviewScreenState
                         ),
                     ]),
                   if (a.needsClinicianInput) _clinicalInputCard(a, reload),
-                  _card('System recommendation', [
+                  _card('Recommended Action', [
                     if (evaluation == null || evaluation.actions.isEmpty)
                       const Text(
                         'No recommendation is available for approval.',
@@ -424,11 +318,22 @@ class _RecommendationReviewScreenState
                           child: Text(action.description),
                         ),
                   ]),
+                  if (a.canReview) _decisionCard(a, reload),
                   if (evaluation != null) ...[
-                    _card('Why this recommendation was generated', [
-                      for (var i = 0; i < evaluation.trace.length; i++)
-                        _traceTile(a, i),
-                    ]),
+                    Card(
+                      child: ExpansionTile(
+                        title: const Text('Why This Result'),
+                        subtitle: const Text(
+                          'Structural traversal returned by the live rule engine',
+                        ),
+                        childrenPadding: const EdgeInsets.all(20),
+                        children: [
+                          for (var i = 0; i < evaluation.trace.length; i++)
+                            _traceTile(a, i),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     if (evaluation.missingInputs.isNotEmpty)
                       _card('Information needed', [
                         for (final field in evaluation.missingInputs)
@@ -442,83 +347,27 @@ class _RecommendationReviewScreenState
                           Text(warning),
                       ]),
                   ],
+                  _card('Lifestyle Recommendations', [
+                    const Text(
+                      'No personalised lifestyle rule output is available from the current target evaluator.',
+                    ),
+                  ]),
+                  _card('Common Advice', [
+                    const Text(
+                      'General bone-health topics for discussion include nutrition, safe physical activity and falls prevention. This is common advice, not a personalised rule output.',
+                    ),
+                  ]),
                   if (a.decisionNotes != null)
-                    _card('Recorded decision', [Text(a.decisionNotes!)]),
-                  if (a.canReview)
-                    _card('Clinician decision', [
-                      DropdownButtonFormField<ClinicalCaseStatus>(
-                        key: ValueKey(a.updatedAt),
-                        initialValue: _decision,
-                        decoration: const InputDecoration(
-                          labelText: 'Decision',
+                    _card('Recorded decision', [
+                      Text(a.decisionNotes!),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.arrow_back),
+                          label: const Text('Return to Work Queue'),
                         ),
-                        items: [
-                          if (evaluation?.canApprove == true)
-                            const DropdownMenuItem(
-                              value: ClinicalCaseStatus.approved,
-                              child: Text('Approve'),
-                            ),
-                          const DropdownMenuItem(
-                            value: ClinicalCaseStatus.withheld,
-                            child: Text('Withhold'),
-                          ),
-                          const DropdownMenuItem(
-                            value: ClinicalCaseStatus.needsMoreInfo,
-                            child: Text('Request more information'),
-                          ),
-                          const DropdownMenuItem(
-                            value: ClinicalCaseStatus.followUpArranged,
-                            child: Text('Arrange follow-up'),
-                          ),
-                        ],
-                        onChanged: _saving
-                            ? null
-                            : (v) => setState(() => _decision = v),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _notes,
-                        minLines: 3,
-                        maxLines: 6,
-                        decoration: const InputDecoration(
-                          labelText: 'Clinical notes',
-                          helperText:
-                              'These notes will be shown to the patient. Include the request or follow-up details.',
-                        ),
-                      ),
-                      if (_error != null)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: Text(
-                            _error!,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 12,
-                        children: [
-                          FilledButton(
-                            onPressed: _saving ? null : () => _save(a, reload),
-                            child: Text(
-                              _saving ? 'Saving...' : 'Save decision',
-                            ),
-                          ),
-                          OutlinedButton(
-                            onPressed: _saving
-                                ? null
-                                : () {
-                                    setState(() {
-                                      _decision = null;
-                                      _error = null;
-                                    });
-                                    reload();
-                                  },
-                            child: const Text('Reload assessment'),
-                          ),
-                        ],
                       ),
                     ]),
                 ],

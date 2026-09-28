@@ -26,7 +26,7 @@ class _QuestionnaireBuilderScreenState
   final _titleController = TextEditingController();
   final _promptController = TextEditingController();
   final _optionsController = TextEditingController();
-  final List<QuestionDefinition> _draftQuestions = [];
+  final List<QuestionnaireQuestion> _draftQuestions = [];
   QuestionType _questionType = QuestionType.text;
   bool _required = true;
   int _refreshKey = 0;
@@ -56,10 +56,21 @@ class _QuestionnaireBuilderScreenState
       appBar: AppBar(title: const Text('Questionnaire builder')),
       body: _loadingInitial
           ? const Center(child: CircularProgressIndicator())
-          : FutureBuilder<List<Questionnaire>>(
+          : FutureBuilder<List<MockQuestionnaireDraft>>(
               key: ValueKey(_refreshKey),
-              future: widget.repository.fetchQuestionnaires(),
+              future: widget.repository.fetchMockQuestionnaireDrafts(),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'Questionnaire builder persistence is BACKEND CONTRACT PENDING.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -84,12 +95,10 @@ class _QuestionnaireBuilderScreenState
                           setState(() => _required = value),
                       onAddQuestion: _addQuestion,
                       onRemoveQuestion: _removeQuestion,
-                      onSaveDraft: () => _saveQuestionnaire(
-                        QuestionnaireStatus.draft,
-                      ),
-                      onPublish: () => _saveQuestionnaire(
-                        QuestionnaireStatus.published,
-                      ),
+                      onSaveDraft: () =>
+                          _saveMockDraft(MockQuestionnaireDraftState.draft),
+                      onMarkReady: () =>
+                          _saveMockDraft(MockQuestionnaireDraftState.ready),
                     ),
                     const SizedBox(height: 16),
                     Card(
@@ -99,25 +108,26 @@ class _QuestionnaireBuilderScreenState
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Current questionnaires',
+                              'Mock questionnaire drafts',
                               style: Theme.of(context).textTheme.titleLarge,
                             ),
                             const SizedBox(height: 12),
                             if (questionnaires.isEmpty)
                               const EmptyState(
-                                message: 'Create the first questionnaire.',
+                                message: 'Create the first mock draft.',
                               )
                             else
                               for (final questionnaire in questionnaires)
                                 ExpansionTile(
                                   tilePadding: EdgeInsets.zero,
-                                  title: Text(questionnaire.title),
+                                  title: Text(questionnaire.displayTitle),
                                   subtitle: Text(
-                                    '${questionnaireStatusLabel(questionnaire.status)} - '
+                                    '${mockQuestionnaireDraftStateLabel(questionnaire.state)} - '
                                     '${questionnaire.questions.length} questions',
                                   ),
-                                  trailing: questionnaire.status ==
-                                          QuestionnaireStatus.published
+                                  trailing:
+                                      questionnaire.state ==
+                                          MockQuestionnaireDraftState.ready
                                       ? null
                                       : Wrap(
                                           spacing: 8,
@@ -125,14 +135,15 @@ class _QuestionnaireBuilderScreenState
                                             TextButton(
                                               onPressed: () =>
                                                   _loadQuestionnaire(
-                                                      questionnaire),
+                                                    questionnaire,
+                                                  ),
                                               child: const Text('Edit'),
                                             ),
                                             TextButton(
-                                              onPressed: () => _publishExisting(
-                                                questionnaire.id,
+                                              onPressed: () => _markReady(
+                                                questionnaire.presentationId,
                                               ),
-                                              child: const Text('Publish'),
+                                              child: const Text('Mark ready'),
                                             ),
                                           ],
                                         ),
@@ -142,7 +153,7 @@ class _QuestionnaireBuilderScreenState
                                       ListTile(
                                         contentPadding: EdgeInsets.zero,
                                         leading: const Icon(Icons.short_text),
-                                        title: Text(question.prompt),
+                                        title: Text(question.questionText),
                                         subtitle: Text(
                                           questionTypeLabel(question.type),
                                         ),
@@ -162,13 +173,14 @@ class _QuestionnaireBuilderScreenState
 
   Future<void> _loadInitialDraft(String questionnaireId) async {
     setState(() => _loadingInitial = true);
-    final questionnaires = await widget.repository.fetchQuestionnaires();
+    final questionnaires = await widget.repository
+        .fetchMockQuestionnaireDrafts();
     if (!mounted) {
       return;
     }
     for (final questionnaire in questionnaires) {
-      if (questionnaire.id == questionnaireId &&
-          questionnaire.status == QuestionnaireStatus.draft) {
+      if (questionnaire.presentationId == questionnaireId &&
+          questionnaire.state == MockQuestionnaireDraftState.draft) {
         _loadQuestionnaire(questionnaire);
         break;
       }
@@ -176,13 +188,13 @@ class _QuestionnaireBuilderScreenState
     setState(() => _loadingInitial = false);
   }
 
-  void _loadQuestionnaire(Questionnaire questionnaire) {
-    if (questionnaire.status != QuestionnaireStatus.draft) {
+  void _loadQuestionnaire(MockQuestionnaireDraft questionnaire) {
+    if (questionnaire.state != MockQuestionnaireDraftState.draft) {
       return;
     }
     setState(() {
-      _draftId = questionnaire.id;
-      _titleController.text = questionnaire.title;
+      _draftId = questionnaire.presentationId;
+      _titleController.text = questionnaire.displayTitle;
       _draftQuestions
         ..clear()
         ..addAll(questionnaire.questions);
@@ -202,21 +214,23 @@ class _QuestionnaireBuilderScreenState
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
         .toList();
-    if (_questionType == QuestionType.choice && options.length < 2) {
+    if (_questionType.requiresOptions && options.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Choice questions need at least 2 options.')),
+          content: Text('Choice questions need at least 2 options.'),
+        ),
       );
       return;
     }
     _questionCounter++;
     setState(() {
       _draftQuestions.add(
-        QuestionDefinition(
+        QuestionnaireQuestion(
           id: 'question-$_questionCounter',
-          prompt: _promptController.text.trim(),
+          questionText: _promptController.text.trim(),
           type: _questionType,
-          required: _required,
+          isRequired: _required,
+          displayOrder: _draftQuestions.length + 1,
           options: options,
         ),
       );
@@ -227,11 +241,11 @@ class _QuestionnaireBuilderScreenState
     });
   }
 
-  void _removeQuestion(QuestionDefinition question) {
+  void _removeQuestion(QuestionnaireQuestion question) {
     setState(() => _draftQuestions.remove(question));
   }
 
-  int _highestQuestionIndex(List<QuestionDefinition> questions) {
+  int _highestQuestionIndex(List<QuestionnaireQuestion> questions) {
     var highest = 0;
     final pattern = RegExp(r'^question-(\d+)$');
     for (final question in questions) {
@@ -244,7 +258,7 @@ class _QuestionnaireBuilderScreenState
     return highest;
   }
 
-  Future<void> _saveQuestionnaire(QuestionnaireStatus status) async {
+  Future<void> _saveMockDraft(MockQuestionnaireDraftState status) async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -254,20 +268,20 @@ class _QuestionnaireBuilderScreenState
       );
       return;
     }
-    final saved = await widget.repository.saveQuestionnaire(
-      Questionnaire(
-        id: _draftId ?? '',
-        title: _titleController.text.trim(),
-        status: status,
-        questions: List<QuestionDefinition>.unmodifiable(_draftQuestions),
+    final saved = await widget.repository.saveMockQuestionnaireDraft(
+      MockQuestionnaireDraft(
+        presentationId: _draftId ?? '',
+        displayTitle: _titleController.text.trim(),
+        state: status,
+        questions: List<QuestionnaireQuestion>.unmodifiable(_draftQuestions),
       ),
     );
     if (!mounted) {
       return;
     }
     setState(() {
-      _draftId = saved.id;
-      if (status == QuestionnaireStatus.published) {
+      _draftId = saved.presentationId;
+      if (status == MockQuestionnaireDraftState.ready) {
         _titleController.clear();
         _draftQuestions.clear();
         _questionCounter = 0;
@@ -278,20 +292,20 @@ class _QuestionnaireBuilderScreenState
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          status == QuestionnaireStatus.published
-              ? 'Questionnaire published.'
-              : 'Questionnaire saved as draft.',
+          status == MockQuestionnaireDraftState.ready
+              ? 'Mock questionnaire marked ready.'
+              : 'Mock questionnaire saved as draft.',
         ),
       ),
     );
   }
 
-  Future<void> _publishExisting(String questionnaireId) async {
-    await widget.repository.publishQuestionnaire(questionnaireId);
+  Future<void> _markReady(String questionnaireId) async {
+    await widget.repository.markMockQuestionnaireDraftReady(questionnaireId);
     if (mounted) {
       setState(() => _refreshKey++);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Questionnaire published.')),
+        const SnackBar(content: Text('Mock questionnaire marked ready.')),
       );
     }
   }
@@ -312,7 +326,7 @@ class _BuilderCard extends StatelessWidget {
     required this.onAddQuestion,
     required this.onRemoveQuestion,
     required this.onSaveDraft,
-    required this.onPublish,
+    required this.onMarkReady,
   });
 
   final GlobalKey<FormState> formKey;
@@ -322,13 +336,13 @@ class _BuilderCard extends StatelessWidget {
   final TextEditingController optionsController;
   final QuestionType questionType;
   final bool required;
-  final List<QuestionDefinition> questions;
+  final List<QuestionnaireQuestion> questions;
   final ValueChanged<QuestionType> onQuestionTypeChanged;
   final ValueChanged<bool> onRequiredChanged;
   final VoidCallback onAddQuestion;
-  final ValueChanged<QuestionDefinition> onRemoveQuestion;
+  final ValueChanged<QuestionnaireQuestion> onRemoveQuestion;
   final VoidCallback onSaveDraft;
-  final VoidCallback onPublish;
+  final VoidCallback onMarkReady;
 
   @override
   Widget build(BuildContext context) {
@@ -340,10 +354,7 @@ class _BuilderCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 16),
               TextFormField(
                 controller: titleController,
@@ -375,11 +386,11 @@ class _BuilderCard extends StatelessWidget {
                           child: Text('Text'),
                         ),
                         DropdownMenuItem(
-                          value: QuestionType.yesNo,
-                          child: Text('Yes / No'),
+                          value: QuestionType.singleChoice,
+                          child: Text('Single choice'),
                         ),
                         DropdownMenuItem(
-                          value: QuestionType.number,
+                          value: QuestionType.numeric,
                           child: Text('Number'),
                         ),
                         DropdownMenuItem(
@@ -387,8 +398,16 @@ class _BuilderCard extends StatelessWidget {
                           child: Text('Scale'),
                         ),
                         DropdownMenuItem(
-                          value: QuestionType.choice,
-                          child: Text('Choice'),
+                          value: QuestionType.dropdown,
+                          child: Text('Dropdown'),
+                        ),
+                        DropdownMenuItem(
+                          value: QuestionType.checkbox,
+                          child: Text('Checkbox'),
+                        ),
+                        DropdownMenuItem(
+                          value: QuestionType.multiChoice,
+                          child: Text('Multiple choice'),
                         ),
                       ],
                       onChanged: (value) {
@@ -422,7 +441,7 @@ class _BuilderCard extends StatelessWidget {
                   );
                 },
               ),
-              if (questionType == QuestionType.choice) ...[
+              if (questionType.requiresOptions) ...[
                 const SizedBox(height: 12),
                 TextField(
                   controller: optionsController,
@@ -445,7 +464,7 @@ class _BuilderCard extends StatelessWidget {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.short_text),
-                    title: Text(question.prompt),
+                    title: Text(question.questionText),
                     subtitle: Text(questionTypeLabel(question.type)),
                     trailing: IconButton(
                       tooltip: 'Remove question',
@@ -464,9 +483,9 @@ class _BuilderCard extends StatelessWidget {
                     label: const Text('Save draft'),
                   ),
                   FilledButton.icon(
-                    onPressed: onPublish,
+                    onPressed: onMarkReady,
                     icon: const Icon(Icons.publish_outlined),
-                    label: const Text('Publish'),
+                    label: const Text('Mark ready'),
                   ),
                 ],
               ),

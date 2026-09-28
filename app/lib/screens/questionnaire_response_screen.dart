@@ -5,15 +5,15 @@ import '../models/questionnaire.dart';
 
 class QuestionnaireResponseScreen extends StatefulWidget {
   const QuestionnaireResponseScreen({
-    required this.questionnaire,
+    required this.form,
     required this.repository,
-    required this.patientName,
+    this.initialAnswers = const {},
     super.key,
   });
 
-  final Questionnaire questionnaire;
+  final QuestionnaireForm form;
   final AppRepository repository;
-  final String patientName;
+  final Map<String, Object?> initialAnswers;
 
   @override
   State<QuestionnaireResponseScreen> createState() =>
@@ -24,17 +24,27 @@ class _QuestionnaireResponseScreenState
     extends State<QuestionnaireResponseScreen> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, TextEditingController> _textControllers = {};
-  final Map<String, Object?> _answers = {};
+  late final Map<String, Object?> _answers;
   bool _submitting = false;
+
+  List<QuestionnaireQuestion> get _visibleQuestions => widget
+      .form
+      .orderedQuestions
+      .where((question) => question.isVisible(_answers))
+      .toList(growable: false);
 
   @override
   void initState() {
     super.initState();
-    for (final question in widget.questionnaire.questions) {
+    _answers = Map<String, Object?>.from(widget.initialAnswers);
+    for (final question in widget.form.questions) {
       if (question.type == QuestionType.text ||
-          question.type == QuestionType.number ||
+          question.type == QuestionType.numeric ||
           question.type == QuestionType.scale) {
-        _textControllers[question.id] = TextEditingController();
+        final initialValue = _answers[question.mockUiAnswerKey];
+        _textControllers[question.mockUiAnswerKey] = TextEditingController(
+          text: initialValue?.toString() ?? '',
+        );
       }
     }
   }
@@ -59,52 +69,63 @@ class _QuestionnaireResponseScreenState
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.questionnaire.title,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                  ],
+                child: Text(
+                  widget.form.displayTitle,
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
             ),
+            const SizedBox(height: 8),
+            const Text(
+              'Patient reported • Your clinician will review this information before using it as a confirmed clinical fact.',
+            ),
             const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (final question in widget.questionnaire.questions) ...[
-                      _QuestionInput(
-                        question: question,
-                        controller: _textControllers[question.id],
-                        value: _answers[question.id],
-                        onChanged: (value) =>
-                            setState(() => _answers[question.id] = value),
+            LinearProgressIndicator(
+              value:
+                  _answeredVisibleCount /
+                  (_visibleQuestions.isEmpty ? 1 : _visibleQuestions.length),
+            ),
+            const SizedBox(height: 16),
+            for (final section in _sections) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        section,
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 16),
+                      for (final question in _visibleQuestions.where(
+                        (q) => q.section == section,
+                      )) ...[
+                        _QuestionInput(
+                          question: question,
+                          controller:
+                              _textControllers[question.mockUiAnswerKey],
+                          value: _answers[question.mockUiAnswerKey],
+                          onChanged: (value) =>
+                              _handleAnswerChanged(question, value),
+                          showPersistencePending:
+                              !widget.repository.isMock &&
+                              question.productionAnswerKey == null,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                     ],
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: FilledButton.icon(
-                        onPressed: _submitting ? null : _submit,
-                        icon: _submitting
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.send_outlined),
-                        label: Text(_submitting ? 'Submitting' : 'Submit'),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: _submitting ? null : _review,
+                icon: const Icon(Icons.fact_check_outlined),
+                label: const Text('Review your answers'),
               ),
             ),
           ],
@@ -113,38 +134,129 @@ class _QuestionnaireResponseScreenState
     );
   }
 
+  List<String> get _sections => _visibleQuestions
+      .map((question) => question.section)
+      .toSet()
+      .toList(growable: false);
+
+  int get _answeredVisibleCount => _visibleQuestions.where((question) {
+    final controller = _textControllers[question.mockUiAnswerKey];
+    return controller != null
+        ? controller.text.trim().isNotEmpty
+        : _answers[question.mockUiAnswerKey] != null;
+  }).length;
+
+  void _handleAnswerChanged(QuestionnaireQuestion question, Object? value) {
+    setState(() {
+      _answers[question.mockUiAnswerKey] = value;
+      if (question.fieldKey == 'sex' && value != 'Female') {
+        // Conditional presentation only: never manufacture a menopause answer.
+        _answers.remove('postmenopausal');
+      }
+      for (final candidate in widget.form.questions) {
+        if (!candidate.isVisible(_answers)) {
+          _answers.remove(candidate.mockUiAnswerKey);
+          _textControllers[candidate.mockUiAnswerKey]?.clear();
+        }
+      }
+    });
+  }
+
+  Future<void> _review() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Review your answers'),
+        content: SizedBox(
+          width: 560,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Text(
+                'Please check this patient-reported information before submitting.',
+              ),
+              const SizedBox(height: 12),
+              for (final question in _visibleQuestions)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(question.questionText),
+                  subtitle: Text(_displayAnswer(question)),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Back to edit'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Submit questionnaire'),
+          ),
+        ],
+      ),
+    );
+    if (proceed == true) await _submit();
+  }
+
+  String _displayAnswer(QuestionnaireQuestion question) {
+    final controller = _textControllers[question.mockUiAnswerKey];
+    return controller?.text.trim() ??
+        _answers[question.mockUiAnswerKey]?.toString() ??
+        'Not provided';
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
     final answers = <String, Object?>{};
-    for (final question in widget.questionnaire.questions) {
-      if (_textControllers.containsKey(question.id)) {
-        final rawValue = _textControllers[question.id]!.text.trim();
-        answers[question.id] = question.type == QuestionType.number ||
+    for (final question in _visibleQuestions) {
+      final productionKey = question.productionAnswerKey;
+      final answerKey = productionKey ?? question.mockUiAnswerKey;
+      if (_textControllers.containsKey(question.mockUiAnswerKey)) {
+        final rawValue = _textControllers[question.mockUiAnswerKey]!.text
+            .trim();
+        answers[answerKey] =
+            question.type == QuestionType.numeric ||
                 question.type == QuestionType.scale
             ? num.tryParse(rawValue)
             : rawValue;
       } else {
-        answers[question.id] = _answers[question.id];
+        answers[answerKey] = _answers[question.mockUiAnswerKey];
       }
     }
 
     setState(() => _submitting = true);
-    await widget.repository.submitPatientResponse(
-      questionnaireId: widget.questionnaire.id,
-      patientName: widget.patientName,
-      answers: answers,
-    );
-    if (!mounted) {
-      return;
+    try {
+      final response = await widget.repository.submitQuestionnaireResponse(
+        answers: answers,
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Questionnaire submitted.')));
+      Navigator.of(context).pop(response);
+    } on AppException catch (error) {
+      if (mounted) {
+        _showError(error.message);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
-    setState(() => _submitting = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Questionnaire submitted.')),
-    );
-    Navigator.of(context).pop();
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -154,78 +266,44 @@ class _QuestionInput extends StatelessWidget {
     required this.controller,
     required this.value,
     required this.onChanged,
+    required this.showPersistencePending,
   });
 
-  final QuestionDefinition question;
+  final QuestionnaireQuestion question;
   final TextEditingController? controller;
   final Object? value;
   final ValueChanged<Object?> onChanged;
+  final bool showPersistencePending;
 
   @override
   Widget build(BuildContext context) {
+    late final Widget input;
     switch (question.type) {
-      case QuestionType.yesNo:
-        return FormField<bool>(
-          initialValue: value is bool ? value as bool : null,
-          validator: (value) =>
-              question.required && value == null ? 'Required' : null,
-          builder: (field) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _QuestionLabel(question: question),
-                const SizedBox(height: 8),
-                SegmentedButton<bool>(
-                  segments: const [
-                    ButtonSegment(value: true, label: Text('Yes')),
-                    ButtonSegment(value: false, label: Text('No')),
-                  ],
-                  selected: field.value == null
-                      ? const <bool>{}
-                      : <bool>{field.value!},
-                  emptySelectionAllowed: true,
-                  onSelectionChanged: (selection) {
-                    final nextValue =
-                        selection.isEmpty ? null : selection.first;
-                    field.didChange(nextValue);
-                    onChanged(nextValue);
-                  },
-                ),
-                if (field.hasError) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    field.errorText!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ],
-              ],
-            );
-          },
-        );
-      case QuestionType.choice:
-        return DropdownButtonFormField<String>(
+      case QuestionType.singleChoice:
+      case QuestionType.dropdown:
+        input = DropdownButtonFormField<String>(
           initialValue: value as String?,
-          decoration: InputDecoration(labelText: question.prompt),
+          decoration: InputDecoration(labelText: question.questionText),
           items: [
             for (final option in question.options)
               DropdownMenuItem(value: option, child: Text(option)),
           ],
           onChanged: onChanged,
           validator: (value) =>
-              question.required && (value == null || value.trim().isEmpty)
-                  ? 'Required'
-                  : null,
+              question.isRequired && (value == null || value.trim().isEmpty)
+              ? 'Required'
+              : null,
         );
-      case QuestionType.number:
+        break;
+      case QuestionType.numeric:
       case QuestionType.scale:
-        return TextFormField(
+        input = TextFormField(
           controller: controller,
-          decoration: InputDecoration(labelText: question.prompt),
+          decoration: InputDecoration(labelText: question.questionText),
           keyboardType: TextInputType.number,
           validator: (value) {
-            if (question.required && (value == null || value.trim().isEmpty)) {
+            if (question.isRequired &&
+                (value == null || value.trim().isEmpty)) {
               return 'Required';
             }
             if (value != null &&
@@ -236,30 +314,86 @@ class _QuestionInput extends StatelessWidget {
             return null;
           },
         );
+        break;
+      case QuestionType.checkbox:
+        input = FormField<bool>(
+          initialValue: value as bool?,
+          validator: (value) =>
+              question.isRequired && value == null ? 'Required' : null,
+          builder: (field) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(question.questionText),
+                tristate: true,
+                value: field.value,
+                onChanged: (value) {
+                  field.didChange(value);
+                  onChanged(value);
+                },
+              ),
+              if (field.hasError)
+                Text(
+                  field.errorText!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+            ],
+          ),
+        );
+        break;
+      case QuestionType.multiChoice:
+        input = FormField<List<String>>(
+          validator: (_) =>
+              'Multiple-choice input is not supported in this UI yet.',
+          builder: (field) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                question.questionText,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                field.errorText ??
+                    'Multiple-choice input is not supported in this UI yet.',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ),
+        );
+        break;
       case QuestionType.text:
-        return TextFormField(
+        input = TextFormField(
           controller: controller,
-          decoration: InputDecoration(labelText: question.prompt),
+          decoration: InputDecoration(labelText: question.questionText),
           maxLines: 3,
           validator: (value) =>
-              question.required && (value == null || value.trim().isEmpty)
-                  ? 'Required'
-                  : null,
+              question.isRequired && (value == null || value.trim().isEmpty)
+              ? 'Required'
+              : null,
         );
+        break;
     }
-  }
-}
-
-class _QuestionLabel extends StatelessWidget {
-  const _QuestionLabel({required this.question});
-
-  final QuestionDefinition question;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      question.prompt,
-      style: Theme.of(context).textTheme.titleSmall,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        input,
+        if (question.helperText != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            question.helperText!,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+        if (showPersistencePending) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Shown in this questionnaire; production persistence is pending.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ],
     );
   }
 }

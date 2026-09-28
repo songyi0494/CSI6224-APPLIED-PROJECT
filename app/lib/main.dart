@@ -25,7 +25,12 @@ Future<void> main() async {
       throw const AppException('Choose an application mode before starting.');
     }
     runApp(OsteoporosisPathwaysApp(repository: repository));
-  } catch (_) {
+  } catch (error, stackTrace) {
+    final diagnostic = error is AppException
+        ? error.message
+        : error.runtimeType.toString();
+    debugPrint('APP STARTUP ERROR: $diagnostic');
+    debugPrintStack(stackTrace: stackTrace);
     runApp(
       const MaterialApp(
         home: Scaffold(

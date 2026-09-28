@@ -94,7 +94,7 @@
         },
         "SEQUENCING_WITH_HISTORY": {
             "type": "decision",
-            "question": "Sequencing from denosumab?",
+            "question": "Is the patient transitioning from denosumab?",
             "condition": {
                 "fact": "sequencingFromDenosumab",
                 "operator": "equals",
@@ -105,7 +105,7 @@
         },
         "SEQUENCING_NO_HISTORY": {
             "type": "decision",
-            "question": "Sequencing from denosumab?",
+            "question": "Is the patient transitioning from denosumab?",
             "condition": {
                 "fact": "sequencingFromDenosumab",
                 "operator": "equals",

@@ -48,7 +48,7 @@
         },
         "RESIDENTIAL_OR_FRAILTY": {
             "type": "decision",
-            "question": "Does the patient live in residential care, have severe frality, or have a life expectancy of 7 years or less?",
+            "question": "Living situation, Frailty and Life expectancy (Please answer the following questions.)",
             "condition": {
                 "any": [
                     {
@@ -93,7 +93,7 @@
         },
         "DXA_SCAN_AVAILABILITY": {
             "type": "decision",
-            "question": "Can the patient undergo a BMD DXA scan? (Select Yes if the patient has had a scan within prior 2 years)",
+            "question": "Is the patient able to undergo a BMD DXA scan? (Select Yes if the patient has had a scan within prior 2 years)",
             "condition": {
                 "fact": "testAvailability",
                 "operator": "equals",

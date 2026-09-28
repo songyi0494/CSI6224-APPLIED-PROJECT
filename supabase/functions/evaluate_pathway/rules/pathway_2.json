@@ -24,7 +24,7 @@
                 "value": true
             },
             "yes": "ANTIRESORPTIVE_TREATMENT_DURATION",
-            "no": "LEAF_NOT_APPLICABLE"
+            "no": "LEAF_REDIRECT_PATHWAY1"
         },
         "ANTIRESORPTIVE_TREATMENT_DURATION": {
             "type": "decision",
@@ -114,9 +114,15 @@
             "yes": "LEAF_RESTARTING_DENOSUMAB_REFERRAL",
             "no": "LEAF_ROMOSOZUMAB_REFERRAL"
         },
-        "LEAF_NOT_APPLICABLE": {
+        "LEAF_REDIRECT_PATHWAY1": {
             "type": "leaf",
-            "actions": []
+            "actions": [
+                {
+                    "type": "pathwayRedirect",
+                    "targetPathway": "PATHWAY1",
+                    "targetNodeId": "RESIDENTIAL_OR_FRAILTY"
+                }
+            ]
         },
         "LEAF_STANDARD_ANTIRESORPTIVE_OPTIONS": {
             "type": "leaf",

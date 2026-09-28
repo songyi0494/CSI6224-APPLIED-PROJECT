@@ -35,7 +35,7 @@ export interface TraceEntry {
 }
 
 export interface EvaluationError {
-    code: "MISSING_REQUIRED_FIELDS" | "NODE_NOT_FOUND" | "REDIRECT_LOOP" | "PATHWAY_NOT_FOUND";
+    code: "MISSING_REQUIRED_FIELDS" | "INVALID_FACT_VALUE" | "NODE_NOT_FOUND" | "REDIRECT_LOOP" | "PATHWAY_NOT_FOUND";
     fields?: string[];
     nodeId?: string;
     pathwayId?: string;

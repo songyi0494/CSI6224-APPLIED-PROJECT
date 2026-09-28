@@ -2,7 +2,7 @@ import type { Action } from "../types/action.ts";
 import type { TraceEntry, EvaluationError, DecisionTreeRule, EvaluationResult, TreeNode } from "../types/decisionTree.ts";
 import { evaluateCondition, getRequiredFactsFromCondition } from "./evaluateCondition.ts";
 
-function evaluateSingleTree(doc: DecisionTreeRule, facts: Record<string, unknown>): {
+function evaluateSingleTree(doc: DecisionTreeRule, facts: Record<string, unknown>, startNodeId?: string): {
     pathway: string;
     actions: Action[];
     trace: TraceEntry[];
@@ -15,7 +15,7 @@ function evaluateSingleTree(doc: DecisionTreeRule, facts: Record<string, unknown
 } {
     const trace: TraceEntry[] = [];
 
-    let currentNodeId = doc.root;
+    let currentNodeId = startNodeId ?? doc.root;
 
     while (true) {
         const node: TreeNode | undefined = doc.nodes[currentNodeId];
@@ -92,27 +92,30 @@ export function evaluateDecisionTree(
     facts: Record<string, unknown>,
     startPathway = "PATHWAY1"
 ): EvaluationResult {
-    const visitedPathways = new Set<string>();
+    let currentPathway = startPathway;
+    let nextStartNodeId: string | undefined = undefined;
+
+    const visitedStates = new Set<string>();
     const fullTrace: TraceEntry[] = [];
     const finalActions: Action[] = [];
-
-    let currentPathway = startPathway;
     
     while (true) {
-        if (visitedPathways.has(currentPathway)) {
+        const stateKey = `${currentPathway}::${nextStartNodeId ?? "__root__"}`;
+
+        if (visitedStates.has(stateKey)) {
             return {
                 status: "error",
                 pathwayId: currentPathway,
                 error: {
                     code: "REDIRECT_LOOP",
                     pathwayId: currentPathway,
-                    message: `Redirect loop detected at ${currentPathway}`,
+                    message: `Redirect loop detected at ${stateKey}`,
                 },
                 actions: finalActions,
                 trace: fullTrace,
             };
         }
-        visitedPathways.add(currentPathway);
+        visitedStates.add(stateKey);
 
         const doc = docs[currentPathway];
 
@@ -130,7 +133,8 @@ export function evaluateDecisionTree(
             };
         }
 
-        const result = evaluateSingleTree(doc, facts);
+        const result = evaluateSingleTree(doc, facts, nextStartNodeId);
+        nextStartNodeId = undefined;
         fullTrace.push(...result.trace);
 
         if (result.error) {
@@ -166,6 +170,7 @@ export function evaluateDecisionTree(
 
         if (redirectAction && typeof redirectAction.targetPathway === "string") {
             currentPathway = redirectAction.targetPathway;
+            nextStartNodeId = typeof redirectAction.targetNodeId === "string" ? redirectAction.targetNodeId : undefined;
             continue;
         }
 

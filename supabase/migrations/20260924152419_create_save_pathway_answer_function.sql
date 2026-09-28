@@ -1,15 +1,19 @@
+alter table public.clinical_cases
+add column pathway_revision integer not null default 0
+check (pathway_revision >= 0);
+
 create or replace function public.save_pathway_answer(
     p_case_id uuid,
     p_field_key text,
     p_value jsonb
 )
-return jsonb
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-    v_case public.clinical_case%rowtype;
+    v_case public.clinical_cases%rowtype;
     v_updated_facts jsonb;
 begin
     if auth.uid() is null then
@@ -64,20 +68,24 @@ begin
             p_value,
             true
         ),
-        revision = revision + 1,
+        pathway_revision = pathway_revision + 1,
         updated_at = now()
     where id = p_case_id
     returning clinician_facts into v_updated_facts;
 
     return v_updated_facts;
-end;;
+end;
 $$;
 
-revoke all on function public.save_pathway_answer(uuid, text, jsonb)
+revoke all 
+on function public.save_pathway_answer(uuid, text, jsonb)
 from public, anon;
 
-grant execute on function public.save_pathway_answer(uuid, text, jsonb)
-to authenticated
+grant execute 
+on function public.save_pathway_answer(uuid, text, jsonb)
+to authenticated;
 
-revoke update(clinician_facts) on public.clinical_cases
+revoke update(clinician_facts) 
+on public.clinical_cases
 from authenticated;
+

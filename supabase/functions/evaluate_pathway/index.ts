@@ -61,43 +61,56 @@ Deno.serve(async (req: Request) => {
 
         const contentType = req.headers.get("Content-Type") || "";
         if (!contentType.includes("application/json")) {
-            throw new Error(`Invalid Content Type`);
+            throw new Error("Invalid Content Type");
         }
 
         const { caseId } = await req.json();
 
         if (!caseId || typeof caseId !== "string") {
-            throw new Error(`Invalid case ID`);
+            throw new Error("Invalid case ID");
         }
 
-        const { data: clinicalCase, error: clinicalCaseError } =
-            await supabase
-                .from("clinical_cases")
-                .select("id, patient_facts, clinician_facts, assigned_clinician_id, status")
-                .eq("id", caseId)
-                .eq("assigned_clinician_id", userData.user.id)
-                .eq("status", "in_progress")
-                .single();
-
-        if (clinicalCaseError) {
-            throw clinicalCaseError;
+        const { data: caseContext, error: caseContextError } =
+            await supabase.rpc('get_pathway_case_context', {
+                p_case_id: caseId,
+            })
+        
+        if(caseContextError) {
+            throw caseContextError;
         }
 
-        const facts = {
-            ...clinicalCase.patient_facts,
-            ...clinicalCase.clinician_facts,
+        if (!caseContext || typeof caseContext !== "object" || Array.isArray(caseContext)){
+            throw new Error("Invalid pathway case context");
+        }
+
+        const clinicalCase = caseContext as {
+            id: string;
+            clinician_facts: Record<string, unknown> | null;
+            assigned_clinician_id: string;
+            status: string;
+            pathway_revision: number;
         };
 
-        const result = evaluateDecisionTree(docs, facts as Record<string, unknown>, "PATHWAY1");
+        const facts = clinicalCase.clinician_facts as Record<string, unknown> | null;
 
-        const { error: saveError } =
-            await supabase.rpc("save_rule_evaluation", {
-                p_case_id: caseId,
-                p_evaluation: result,
-            });
+        if (!facts || typeof facts !== "object" || Array.isArray(facts)) {
+            throw new Error(
+                `Invalid clinician_facts received: ${JSON.stringify(facts)}`
+            );
+        }
 
-        if (saveError) {
-            throw saveError;
+        const result = evaluateDecisionTree(docs, facts, "PATHWAY1");
+
+        if (result.status === "complete") {
+            const { error: saveError } =
+                await supabase.rpc("save_rule_evaluation", {
+                    p_case_id: caseId,
+                    p_evaluation: result,
+                });
+
+            if (saveError) {
+                throw saveError;
+            }
         }
 
         return new Response(JSON.stringify(result), {
@@ -108,7 +121,16 @@ Deno.serve(async (req: Request) => {
             },
         });
     } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
+        let message = "Unkown error";
+
+        if (err instanceof Error) {
+            message = err.message;
+        } else if (
+            typeof err === "object" && err !== null && "message" in err && typeof err.message === "string"
+        ) {
+            message = err.message;
+        }
+
         return new Response(JSON.stringify({ error: message }), {
             status: 400,
             headers: {

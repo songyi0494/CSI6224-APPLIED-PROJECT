@@ -1,0 +1,5 @@
+.pub-cache/
+.tool_home/
+.gradle/
+node_modules/
+code/supabase/.temp/

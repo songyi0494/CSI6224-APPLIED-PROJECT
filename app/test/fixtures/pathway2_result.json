@@ -1,0 +1,12 @@
+{
+  "pathway": "PATHWAY2",
+  "decision": "not_integrated",
+  "routing_reason": "Previous or current osteoporosis treatment was recorded.",
+  "rule_version": "pathway1-2026-09-13.1",
+  "actions": [],
+  "trace": [],
+  "missing_inputs": [],
+  "warnings": [
+    "Decision support requires clinician review."
+  ]
+}

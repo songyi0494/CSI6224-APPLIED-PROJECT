@@ -1,0 +1,11 @@
+{
+  "name": "CSI6224 Pathways",
+  "short_name": "Pathways",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F7FAF9",
+  "theme_color": "#0F766E",
+  "description": "Patient feedback and clinical decision support prototype.",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false
+}

@@ -29,8 +29,7 @@ declare
     v_lifestyle_advice jsonb := '[]'::jsonb;
 begin
     if auth.uid() is null or not public.is_approved_clinician() then
-        raise exception 'Only approved clinicians can review clinical case results'
-        using errcode = '42501';
+        raise exception 'Only approved clinicians can review clinical case results';
     end if;
 
     select * into v_case
@@ -42,8 +41,7 @@ begin
         raise exception 'Clinical case not found';
     end if;
     if v_case.assigned_clinician_id is distinct from auth.uid() then
-        raise exception 'You can only review your assigned clinical case'
-        using errcode = '42501';
+        raise exception 'You can only review your assigned clinical case';
     end if;
     if v_case.status not in ('in_progress', 'evaluated') then
         raise exception 'Only current in-progress or evaluated cases can be reviewed';

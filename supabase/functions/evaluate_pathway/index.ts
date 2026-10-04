@@ -18,15 +18,18 @@ const publishableKeys = JSON.parse(
 
 const supabasePublishableKey = publishableKeys["default"];
 
+const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers":
+        "authorization, x-client-info, apikey, content-type",
+};
+
 Deno.serve(async (req: Request) => {
     if (req.method === "OPTIONS") {
         return new Response(null, {
             status: 204,
-            headers: {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization",
-            },
+            headers: corsHeaders,
         });
     }
 
@@ -76,7 +79,7 @@ Deno.serve(async (req: Request) => {
             await supabase.rpc('get_pathway_case_context', {
                 p_case_id: caseId,
             })
-        
+
         if(caseContextError) {
             throw caseContextError;
         }
@@ -91,6 +94,7 @@ Deno.serve(async (req: Request) => {
             assigned_clinician_id: string;
             status: string;
             pathway_revision: number;
+            investigation_revision: number;
         };
 
         const facts = clinicalCase.clinician_facts as Record<string, unknown> | null;
@@ -118,8 +122,8 @@ Deno.serve(async (req: Request) => {
                 {
                     status: 400,
                     headers: {
+                        ...corsHeaders,
                         "Content-Type": "application/json",
-                        "Access-Control-Allow-Origin": "*",
                     },
                 }
             );
@@ -132,6 +136,10 @@ Deno.serve(async (req: Request) => {
                 await supabase.rpc("save_rule_evaluation", {
                     p_case_id: caseId,
                     p_evaluation: result,
+                    p_expected_pathway_revision:
+                        clinicalCase.pathway_revision,
+                    p_expected_investigation_revision:
+                        clinicalCase.investigation_revision,
                 });
 
             if (saveError) {
@@ -142,8 +150,8 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify(result), {
             status: 200,
             headers: {
+                ...corsHeaders,
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
             },
         });
     } catch (err) {
@@ -160,8 +168,8 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: message }), {
             status: 400,
             headers: {
+                ...corsHeaders,
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
             },
         });
     }

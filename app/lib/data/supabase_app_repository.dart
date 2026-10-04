@@ -525,7 +525,7 @@ class SupabaseAppRepository implements AppRepository {
       _call(() async {
         await client.rpc(
           'review_clinician',
-          params: {'p_id': id, 'p_approval': approval.name},
+          params: {'p_clinician_id': id, 'p_approval': approval.name},
         );
       }, 'The account could not be updated. Refresh and try again.');
   @override

@@ -1,12 +1,4 @@
-export type Operator =
-    | 'equals'
-    | 'notEquals'
-    | 'lessThan'
-    | 'lessThanOrEqual'
-    | 'greaterThan'
-    | 'greaterThanOrEqual'
-    | 'in'
-    | 'notIn';
+export type Operator = 'equals';
 
 export interface SimpleCondition {
     fact: string;

@@ -26,11 +26,11 @@
     "nodes": {
         "RENAL_DYSFUNCTION": {
             "type": "decision",
-            "question": "What is the patient's eGFR value? (Unit: mL/min)",
+            "question": "Is the patient's eGFR value 30mL/min or higher?",
             "condition": {
                 "fact": "eGFR",
-                "operator": "greaterThan",
-                "value": 30
+                "operator": "equals",
+                "value": true
             },
             "yes": "ON_OSTEOPOROSIS_TREATMENT",
             "no": "LEAF_RENAL_REFERRAL"
@@ -58,13 +58,13 @@
                     },
                     {
                         "fact": "clinicalFrailtyScore",
-                        "operator": "greaterThanOrEqual",
-                        "value": 6
+                        "operator": "equals",
+                        "value": true
                     },
                     {
                         "fact": "lifeExpectancy",
-                        "operator": "lessThan",
-                        "value": 7
+                        "operator": "equals",
+                        "value": true
                     }
                 ]
             },
@@ -104,23 +104,23 @@
         },
         "T_SCORE_CHECK": {
             "type": "decision",
-            "question": "What are the patient's T-score for the femoral neck, hip, and lumbar spine?",
+            "question": "Is the patient's T-score for the femoral neck, hip, and lumbar spine -2.5 or lower?",
             "condition": {
                 "any": [
                     {
                         "fact": "femoralNeckTscore",
-                        "operator": "lessThanOrEqual",
-                        "value": -2.5
+                        "operator": "equals",
+                        "value": true
                     },
                     {
                         "fact": "hipTscore",
-                        "operator": "lessThanOrEqual",
-                        "value": -2.5
+                        "operator": "equals",
+                        "value": true
                     },
                     {
                         "fact": "lumbarSpineTscore",
-                        "operator": "lessThanOrEqual",
-                        "value": -2.5
+                        "operator": "equals",
+                        "value": true
                     }
                 ]
             },
@@ -147,18 +147,18 @@
                         "any": [
                             {
                                 "fact": "femoralNeckTscore",
-                                "operator": "lessThanOrEqual",
-                                "value": -3.0
+                                "operator": "equals",
+                                "value": true
                             },
                             {
                                 "fact": "hipTscore",
-                                "operator": "lessThanOrEqual",
-                                "value": -3.0
+                                "operator": "equals",
+                                "value": true
                             },
                             {
                                 "fact": "lumbarSpineTscore",
-                                "operator": "lessThanOrEqual",
-                                "value": -3.0
+                                "operator": "equals",
+                                "value": true
                             }
                         ]
                     },
@@ -181,13 +181,13 @@
                             },
                             {
                                 "fact": "FRAX10YmajorOsteoporoticFractureRiskPercent",
-                                "operator": "greaterThanOrEqual",
-                                "value": 30
+                                "operator": "equals",
+                                "value": true
                             },
                             {
                                 "fact": "FRAX10YmajorHipFractureRiskPercent",
-                                "operator": "greaterThanOrEqual",
-                                "value": 4.5
+                                "operator": "equals",
+                                "value": true
                             }
                         ]
                     }

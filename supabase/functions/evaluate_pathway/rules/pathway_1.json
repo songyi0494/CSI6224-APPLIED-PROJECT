@@ -4,6 +4,9 @@
         "title": "Treatment naive patients - General"
     },
     "requiredFields": [
+        "p1DemographicEligible",
+        "minimalTraumaFracture",
+        "fractureSite",
         "eGFR",
         "osteoporosisTreatmentStatus",
         "liveInResidentialCare",
@@ -22,11 +25,86 @@
         "FRAX10YmajorOsteoporoticFractureRiskPercent",
         "FRAX10YmajorHipFractureRiskPercent"
     ],
-    "root": "RENAL_DYSFUNCTION",
+    "root": "P1_DEMOGRAPHIC_ELIGIBILITY",
     "nodes": {
+        "P1_DEMOGRAPHIC_ELIGIBILITY": {
+            "type": "decision",
+            "question": "Check the recorded P1 demographic eligibility.",
+            "condition": {
+                "fact": "p1DemographicEligible",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "MINIMAL_TRAUMA_KNOWN",
+            "no": "P1_ELIGIBILITY_NOT_MET"
+        },
+        "MINIMAL_TRAUMA_KNOWN": {
+            "type": "decision",
+            "question": "Did the fracture occur after a fall from standing height or less?",
+            "condition": {
+                "fact": "minimalTraumaFracture",
+                "operator": "in",
+                "value": [
+                    "yes",
+                    "no"
+                ]
+            },
+            "yes": "MINIMAL_TRAUMA_FRACTURE",
+            "no": "P1_ELIGIBILITY_REVIEW"
+        },
+        "MINIMAL_TRAUMA_FRACTURE": {
+            "type": "decision",
+            "question": "Did the fracture occur after a fall from standing height or less?",
+            "condition": {
+                "fact": "minimalTraumaFracture",
+                "operator": "equals",
+                "value": "yes"
+            },
+            "yes": "FRACTURE_SITE_KNOWN",
+            "no": "P1_ELIGIBILITY_NOT_MET"
+        },
+        "FRACTURE_SITE_KNOWN": {
+            "type": "decision",
+            "question": "Where was the fracture?",
+            "condition": {
+                "fact": "fractureSite",
+                "operator": "notIn",
+                "value": [
+                    "not_sure"
+                ]
+            },
+            "yes": "FRACTURE_SITE_ELIGIBLE",
+            "no": "P1_ELIGIBILITY_REVIEW"
+        },
+        "FRACTURE_SITE_ELIGIBLE": {
+            "type": "decision",
+            "question": "Where was the fracture?",
+            "condition": {
+                "fact": "fractureSite",
+                "operator": "notIn",
+                "value": [
+                    "hand",
+                    "foot",
+                    "face",
+                    "ankle"
+                ]
+            },
+            "yes": "RENAL_DYSFUNCTION",
+            "no": "P1_ELIGIBILITY_NOT_MET"
+        },
+        "P1_ELIGIBILITY_NOT_MET": {
+            "type": "review",
+            "code": "ELIGIBILITY_NOT_MET",
+            "message": "The patient does not meet the P1 entry criteria. Clinician review is required before choosing another pathway."
+        },
+        "P1_ELIGIBILITY_REVIEW": {
+            "type": "review",
+            "code": "ELIGIBILITY_INFORMATION_REQUIRED",
+            "message": "More information is required before the recommendation can be completed. Confirm the fracture mechanism and site."
+        },
         "RENAL_DYSFUNCTION": {
             "type": "decision",
-            "question": "Is the patient's eGFR value 30mL/min or higher?",
+            "question": "Is the patient's eGFR 30 mL/min or higher?",
             "condition": {
                 "fact": "eGFR",
                 "operator": "equals",
@@ -299,8 +377,8 @@
                     "destination": "GP"
                 },
                 {
-                    "type":"review",
-                    "instruction":"Reassess fracture risk after 5 years or after 3 zoledronic acid doses."
+                    "type": "review",
+                    "instruction": "Reassess fracture risk after 5 years or after 3 zoledronic acid doses."
                 },
                 {
                     "type": "referral",

@@ -29,7 +29,7 @@ void main() {
   }
 
   const completeClinicianInput = Pathway1ClinicianInput(
-    egfr: 54,
+    egfr: true,
     clinicalFrailtyScore: 4,
     lifeExpectancy: 10,
     knownPoorMedicationAdherence: false,
@@ -173,7 +173,7 @@ void main() {
       final review = await localRepo.completePathway1ClinicianInput(
         assessment: await localRepo.fetchClinicalCase(a.id),
         input: const Pathway1ClinicianInput(
-          egfr: 54,
+          egfr: true,
           clinicalFrailtyScore: 4,
           lifeExpectancy: 10,
           knownPoorMedicationAdherence: false,
@@ -695,7 +695,7 @@ void main() {
     final needsHighRisk = await localRepo.completePathway1ClinicianInput(
       assessment: await localRepo.fetchClinicalCase(a.id),
       input: const Pathway1ClinicianInput(
-        egfr: 54,
+        egfr: true,
         clinicalFrailtyScore: 4,
         lifeExpectancy: 10,
         knownPoorMedicationAdherence: false,
@@ -713,7 +713,7 @@ void main() {
     final specialist = await localRepo.completePathway1ClinicianInput(
       assessment: needsHighRisk,
       input: const Pathway1ClinicianInput(
-        egfr: 54,
+        egfr: true,
         clinicalFrailtyScore: 4,
         lifeExpectancy: 10,
         knownPoorMedicationAdherence: false,

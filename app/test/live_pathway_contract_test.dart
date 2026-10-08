@@ -3,7 +3,9 @@ import 'package:csi6224_patient_feedback/data/mock_app_repository.dart';
 import 'package:csi6224_patient_feedback/models/live_pathway.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Future<({MockAppRepository repository, String caseId})> clinicianCase() async {
+Future<({MockAppRepository repository, String caseId})> clinicianCase({
+  bool confirmEligibility = true,
+}) async {
   final repository = MockAppRepository();
   await repository.signIn(
     email: 'patient@example.test',
@@ -27,6 +29,18 @@ Future<({MockAppRepository repository, String caseId})> clinicianCase() async {
     bodyWeightKg: 70,
     expectedRevision: 0,
   );
+  if (confirmEligibility) {
+    await repository.savePathwayAnswer(
+      caseId: assessment.id,
+      fieldKey: 'minimalTraumaFracture',
+      value: 'yes',
+    );
+    await repository.savePathwayAnswer(
+      caseId: assessment.id,
+      fieldKey: 'fractureSite',
+      value: 'hip',
+    );
+  }
   return (repository: repository, caseId: assessment.id);
 }
 
@@ -58,13 +72,13 @@ void main() {
   });
 
   test('typed registry covers audited numeric and boolean facts', () {
-    expect(pathwayFactRegistry['eGFR']!.kind, PathwayFactKind.number);
+    expect(pathwayFactRegistry['eGFR']!.kind, PathwayFactKind.boolean);
     expect(pathwayFactRegistry['hipTscore']!.allowNegative, isTrue);
     expect(
       pathwayFactRegistry['priorMIorStroke']!.kind,
       PathwayFactKind.boolean,
     );
-    expect(pathwayFactRegistry, hasLength(25));
+    expect(pathwayFactRegistry, hasLength(27));
   });
 
   test('mock follows P1 and returns a multi-fact node', () async {
@@ -76,7 +90,7 @@ void main() {
     await setup.repository.savePathwayAnswer(
       caseId: setup.caseId,
       fieldKey: 'eGFR',
-      value: 54.0,
+      value: true,
     );
     await setup.repository.savePathwayAnswer(
       caseId: setup.caseId,
@@ -100,7 +114,7 @@ void main() {
     await setup.repository.savePathwayAnswer(
       caseId: setup.caseId,
       fieldKey: 'eGFR',
-      value: 54,
+      value: true,
     );
     await setup.repository.savePathwayAnswer(
       caseId: setup.caseId,
@@ -122,7 +136,7 @@ void main() {
       await setup.repository.savePathwayAnswer(
         caseId: setup.caseId,
         fieldKey: 'eGFR',
-        value: 54,
+        value: true,
       );
       expect(
         await setup.repository.evaluatePathway(caseId: setup.caseId),
@@ -131,7 +145,7 @@ void main() {
       await setup.repository.savePathwayAnswer(
         caseId: setup.caseId,
         fieldKey: 'eGFR',
-        value: 20,
+        value: false,
       );
       expect(
         await setup.repository.evaluatePathway(caseId: setup.caseId),
@@ -141,7 +155,7 @@ void main() {
         () => setup.repository.savePathwayAnswer(
           caseId: setup.caseId,
           fieldKey: 'eGFR',
-          value: 30,
+          value: true,
         ),
         throwsA(isA<AppException>()),
       );

@@ -34,6 +34,14 @@ function evaluateSingleTree(doc: DecisionTreeRule, facts: Record<string, unknown
             };
         }
 
+        if (node.type === "review") {
+            trace.push({ pathwayId: doc.metadata.id, nodeId: currentNodeId, nodeType: "review", actionsTriggered: [] });
+            return {
+                pathway: doc.metadata.id, actions: [], trace,
+                error: { code: node.code, nodeId: currentNodeId, pathwayId: doc.metadata.id, message: node.message },
+            };
+        }
+
         if (node.type === "leaf"){
             trace.push({
                 pathwayId: doc.metadata.id,

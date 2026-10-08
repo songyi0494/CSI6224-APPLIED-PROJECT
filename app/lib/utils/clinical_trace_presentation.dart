@@ -27,7 +27,15 @@ ClinicalTracePresentation clinicalTracePresentation(
   // Use the saved traversal, with display metadata from the supplied rules.
   if (trace.nodeType != null) {
     final key = '${trace.pathwayId}:${trace.ruleId}';
-    final condition = liveNodeConditions[key];
+    final currentContract = trace.contractVersion == 'songyi-p1p2-20261008';
+    // Do not apply the new boundary meaning to an older saved answer.
+    final legacyEgfr = !currentContract && key == 'PATHWAY1:RENAL_DYSFUNCTION';
+    final legacyDuration = !currentContract && key == 'PATHWAY2:ANTIRESORPTIVE_TREATMENT_DURATION';
+    final condition = legacyEgfr
+        ? 'Historical eGFR answer. Confirm the current ≥30 mL/min threshold before a new evaluation.'
+        : legacyDuration
+        ? 'Historical duration answer. Confirm more than 12 months before a new evaluation.'
+        : liveNodeConditions[key];
     final next = trace.nextNodeId == null ? null
         : liveNodeLabels['${trace.pathwayId}:${trace.nextNodeId}']
           ?? trace.nextNodeId;
@@ -41,7 +49,9 @@ ClinicalTracePresentation clinicalTracePresentation(
             ? 'Condition result was not recorded.'
             : 'Condition ${trace.matched! ? 'met' : 'not met'}.');
     return ClinicalTracePresentation(
-      title: liveNodeLabels[key] ?? trace.ruleId,
+      title: legacyEgfr ? 'Historical kidney function decision'
+          : legacyDuration ? 'Historical treatment duration decision'
+          : liveNodeLabels[key] ?? trace.ruleId,
       details: [
         if (condition != null) 'Rule checked: $condition',
       ],
@@ -90,8 +100,14 @@ ClinicalTracePresentation clinicalTracePresentation(
       return ClinicalTracePresentation(
         title: 'Kidney function',
         details: [
-          _line('eGFR', input['eGFR'], suffix: ' mL/min'),
-          'Renal referral threshold: eGFR < 30 mL/min',
+          if (input['eGFR'] is bool)
+            _line('eGFR ≥30 mL/min', input['eGFR'])
+          else
+            _line('eGFR', input['eGFR'], suffix: ' mL/min'),
+          if (input['eGFR'] is bool)
+            'Renal referral applies when the threshold answer is No.'
+          else
+            'Renal referral threshold: eGFR < 30 mL/min',
         ],
         result: _result(
           trace,

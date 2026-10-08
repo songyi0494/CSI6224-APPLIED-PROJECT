@@ -36,7 +36,8 @@ class ClinicalInput {
       robustWoman;
   final int? age, frailty;
   final String? sexAtBirth, fractureSite;
-  final double? egfr, lifeExpectancy, tScore, vitaminD, yearsSinceMenopause;
+  final double? lifeExpectancy, tScore, vitaminD, yearsSinceMenopause;
+  final bool? egfr;
 
   // retain the existing JSON rule vocabulary at this single boundary
   Map<String, Object?> toFacts() => {
@@ -69,7 +70,7 @@ class ClinicalInput {
     postmenopausal: f['postmenopausal'] as bool?,
     minimalTraumaFracture: f['minimalTraumaFracture'] as bool?,
     fractureSite: f['fractureSite'] as String?,
-    egfr: (f['eGFR'] as num?)?.toDouble(),
+    egfr: f['eGFR'] is bool ? f['eGFR'] as bool : null,
     frailty: (f['clinicalFrailtyScore'] as num?)?.toInt(),
     lifeExpectancy: (f['lifeExpectancy'] as num?)?.toDouble(),
     residentialCare: f['liveInResidentialCare'] as bool?,

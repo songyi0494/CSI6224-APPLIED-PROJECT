@@ -1,5 +1,8 @@
 export const factSchema = {
-    "eGFR": { type: "number" },
+    "eGFR": { type: "boolean" },
+    "p1DemographicEligible": { type: "boolean" },
+    "minimalTraumaFracture": { type: "choice", values: ["yes", "no", "not_sure"] },
+    "fractureSite": { type: "choice", values: ["hip", "vertebral", "pelvis", "upper_arm", "forearm", "leg", "ribs", "hand", "foot", "face", "ankle", "not_sure"] },
     "osteoporosisTreatmentStatus": { type: "boolean" },
     "liveInResidentialCare": { type: "boolean" },
     "clinicalFrailtyScore": { type: "number" },
@@ -17,7 +20,7 @@ export const factSchema = {
     "FRAX10YmajorOsteoporoticFractureRiskPercent": { type: "number" },
     "FRAX10YmajorHipFractureRiskPercent": { type: "number" },
     "antiresorptiveTreatmentStatus": { type: "boolean" },
-    "antiresorptiveTreatmentDuration": { type: "boolean" },
+    "antiresorptiveTreatmentOver12Months": { type: "boolean" },
     "adheredToTheTreatment": { type: "boolean" },
     "symptomaticFractureInLast12M": { type: "boolean" },
     "multipleFractures": { type: "boolean" },

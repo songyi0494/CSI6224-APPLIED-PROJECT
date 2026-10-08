@@ -7,12 +7,14 @@ class ReasoningTraceEntry {
     this.pathwayId,
     this.nodeType,
     this.nextNodeId,
+    this.contractVersion,
     this.actionsTriggered = const [],
   });
   final String ruleId, reason;
   final bool? matched;
   final Map<String, Object?> input;
   final String? pathwayId, nodeType, nextNodeId;
+  final String? contractVersion;
   final List<PathwayAction> actionsTriggered;
   factory ReasoningTraceEntry.fromJson(Map<String, dynamic> j) =>
       ReasoningTraceEntry(
@@ -21,6 +23,7 @@ class ReasoningTraceEntry {
         pathwayId: j['pathwayId']?.toString(),
         nodeType: j['nodeType']?.toString(),
         nextNodeId: j['nextNodeId']?.toString(),
+        contractVersion: j['contractVersion']?.toString(),
         actionsTriggered: (j['actionsTriggered'] as List? ?? const [])
             .map((a) => PathwayAction.fromJson(Map<String, dynamic>.from(a as Map)))
             .toList(growable: false),
@@ -64,7 +67,7 @@ class PathwayEvaluation {
   ) => PathwayEvaluation(
     pathway: (j['pathway'] ?? j['pathwayId']) as String?,
     decision: (j['decision'] ?? j['status'] ?? 'complete').toString(),
-    ruleVersion: (j['rule_version'] ?? 'evaluate_pathway-v12').toString(),
+    ruleVersion: (j['contractVersion'] ?? j['rule_version'] ?? 'evaluate_pathway-v12').toString(),
     routingReason: (j['routing_reason'] ?? 'Backend-driven pathway traversal')
         .toString(),
     pathwayRevision: (j['pathwayRevision'] as num?)?.toInt(),
@@ -75,7 +78,10 @@ class PathwayEvaluation {
     trace: (j['trace'] as List? ?? const [])
         .map(
           (a) =>
-              ReasoningTraceEntry.fromJson(Map<String, dynamic>.from(a as Map)),
+              ReasoningTraceEntry.fromJson({
+                ...Map<String, dynamic>.from(a as Map),
+                if (j['contractVersion'] != null) 'contractVersion': j['contractVersion'],
+              }),
         )
         .toList(),
     missingInputs: List<String>.from(j['missing_inputs'] as List? ?? const []),

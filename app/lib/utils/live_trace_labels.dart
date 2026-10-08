@@ -1,6 +1,13 @@
-// Presentation metadata copied from the supplied db_pathway_integration rules.
+// Presentation metadata for Songyi P1/P2; routing stays in the rule engine.
 const liveNodeLabels = <String, String>{
-  'PATHWAY1:RENAL_DYSFUNCTION': 'What is the patient\'s eGFR value? (Unit: mL/min)',
+  'PATHWAY1:P1_DEMOGRAPHIC_ELIGIBILITY': 'Recorded P1 demographic eligibility',
+  'PATHWAY1:MINIMAL_TRAUMA_KNOWN': 'Fracture mechanism is known',
+  'PATHWAY1:MINIMAL_TRAUMA_FRACTURE': 'Fall from standing height or less',
+  'PATHWAY1:FRACTURE_SITE_KNOWN': 'Fracture site is known',
+  'PATHWAY1:FRACTURE_SITE_ELIGIBLE': 'Fracture site is eligible',
+  'PATHWAY1:P1_ELIGIBILITY_NOT_MET': 'P1 entry criteria are not met',
+  'PATHWAY1:P1_ELIGIBILITY_REVIEW': 'Confirm fracture information',
+  'PATHWAY1:RENAL_DYSFUNCTION': 'Is the patient\'s eGFR 30 mL/min or higher?',
   'PATHWAY1:ON_OSTEOPOROSIS_TREATMENT': 'Is the patient currently on osteoporosis treatment?',
   'PATHWAY1:RESIDENTIAL_OR_FRAILTY': 'Living situation, Frailty and Life expectancy (Please answer the following questions.)',
   'PATHWAY1:ADHERENCE_CONCERN': 'Is the patient able to adhere to their treatment plan? (Please answer the following questions.)',
@@ -16,7 +23,7 @@ const liveNodeLabels = <String, String>{
   'PATHWAY1:LEAF_OSTEOANABOLIC_REFERRAL': 'Osteoanabolic referral',
   'PATHWAY1:LEAF_PRIVATELY_FUNDED_OSTEOANABOLIC_REFERRAL': 'Privately funded osteoanabolic referral',
   'PATHWAY2:ON_ANTIRESORPTIVE_TREATMENT': 'Is the patient currently on antiresorptive treatment?',
-  'PATHWAY2:ANTIRESORPTIVE_TREATMENT_DURATION': 'Has the patient been receiving their pre-existing antiresorptive treatment for 12 months or longer?',
+  'PATHWAY2:ANTIRESORPTIVE_TREATMENT_DURATION': 'Has the patient used the current antiresorptive treatment for more than 12 months?',
   'PATHWAY2:TREATMENT_ADHERENCE': 'Has the patient adhered to the treatment plan?',
   'PATHWAY2:SYMPTOMATIC_FRACTURE': 'Has the patient had 1 or more symptomatic fractures in last 12 months?',
   'PATHWAY2:MULTIPLE_FRACTURES': 'Has the patient had 2 or more fractures? (Check for occult vertebral fractures in previous chest or abdomen scan)',
@@ -33,7 +40,12 @@ const liveNodeLabels = <String, String>{
 };
 
 const liveNodeConditions = <String, String>{
-  'PATHWAY1:RENAL_DYSFUNCTION': 'eGFR > 30',
+  'PATHWAY1:P1_DEMOGRAPHIC_ELIGIBILITY': 'Postmenopausal woman OR man older than 50',
+  'PATHWAY1:MINIMAL_TRAUMA_KNOWN': 'Fracture mechanism confirmed as Yes or No',
+  'PATHWAY1:MINIMAL_TRAUMA_FRACTURE': 'Fall from standing height or less = Yes',
+  'PATHWAY1:FRACTURE_SITE_KNOWN': 'Fracture site is confirmed',
+  'PATHWAY1:FRACTURE_SITE_ELIGIBLE': 'Fracture site excludes hand, foot, face and ankle',
+  'PATHWAY1:RENAL_DYSFUNCTION': 'eGFR ≥30 mL/min = Yes',
   'PATHWAY1:ON_OSTEOPOROSIS_TREATMENT': 'Currently on osteoporosis treatment = Yes',
   'PATHWAY1:RESIDENTIAL_OR_FRAILTY': '(Lives in residential care = Yes OR Clinical Frailty Scale score >= 6 OR Life expectancy < 7)',
   'PATHWAY1:ADHERENCE_CONCERN': '(Known poor medication adherence = Yes OR Cognitive impairment affecting adherence = Yes)',
@@ -42,7 +54,7 @@ const liveNodeConditions = <String, String>{
   'PATHWAY1:RECENT_MAJOR_FRACTURES': 'Hip, vertebral, or multiple fractures in the last 24 months = Yes',
   'PATHWAY1:HIGH_RISK_CHECK': '((Femoral neck T-score <= -3.0 OR Hip T-score <= -3.0 OR Lumbar spine T-score <= -3.0) AND (Recent fracture within two years = Yes OR History of two or more fractures = Yes OR Additional clinical risk factors = Yes OR FRAX 10-year major osteoporotic fracture risk >= 30 OR FRAX 10-year hip fracture risk >= 4.5))',
   'PATHWAY2:ON_ANTIRESORPTIVE_TREATMENT': 'Currently on antiresorptive treatment = Yes',
-  'PATHWAY2:ANTIRESORPTIVE_TREATMENT_DURATION': 'Antiresorptive treatment for 12 months or longer = Yes',
+  'PATHWAY2:ANTIRESORPTIVE_TREATMENT_DURATION': 'Current antiresorptive treatment >12 months = Yes',
   'PATHWAY2:TREATMENT_ADHERENCE': 'Adhered to the treatment plan = Yes',
   'PATHWAY2:SYMPTOMATIC_FRACTURE': 'Symptomatic fracture in the last 12 months = Yes',
   'PATHWAY2:MULTIPLE_FRACTURES': 'Two or more fractures = Yes',

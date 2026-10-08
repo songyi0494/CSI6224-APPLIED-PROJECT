@@ -5,7 +5,7 @@
     },
     "requiredFields": [
         "antiresorptiveTreatmentStatus",
-        "antiresorptiveTreatmentDuration",
+        "antiresorptiveTreatmentOver12Months",
         "adheredToTheTreatment",
         "symptomaticFractureInLast12M",
         "multipleFractures",
@@ -28,9 +28,9 @@
         },
         "ANTIRESORPTIVE_TREATMENT_DURATION": {
             "type": "decision",
-            "question": "Has the patient been receiving their pre-existing antiresorptive treatment for 12 months or longer?",
+            "question": "Has the patient used the current antiresorptive treatment for more than 12 months?",
             "condition": {
-                "fact": "antiresorptiveTreatmentDuration",
+                "fact": "antiresorptiveTreatmentOver12Months",
                 "operator": "equals",
                 "value": true
             },

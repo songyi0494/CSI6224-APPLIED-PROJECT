@@ -15,7 +15,8 @@ class Pathway1ClinicianInput {
     this.robustWoman,
   });
 
-  final double? egfr, lifeExpectancy, tScoreValue, yearsSinceMenopause;
+  final double? lifeExpectancy, tScoreValue, yearsSinceMenopause;
+  final bool? egfr;
   final int? clinicalFrailtyScore;
   final String? tScoreSite;
   final bool? knownPoorMedicationAdherence,
@@ -81,7 +82,8 @@ class Pathway1ClinicianInput {
   factory Pathway1ClinicianInput.fromJson(Map<String, dynamic>? json) {
     final f = json ?? const <String, dynamic>{};
     return Pathway1ClinicianInput(
-      egfr: (f['eGFR'] as num?)?.toDouble(),
+      // Historical raw numbers require a new threshold confirmation.
+      egfr: f['eGFR'] is bool ? f['eGFR'] as bool : null,
       clinicalFrailtyScore: (f['clinicalFrailtyScore'] as num?)?.toInt(),
       lifeExpectancy: (f['lifeExpectancy'] as num?)?.toDouble(),
       knownPoorMedicationAdherence:

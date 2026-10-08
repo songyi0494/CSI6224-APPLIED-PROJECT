@@ -101,7 +101,7 @@ class MockAppRepository implements AppRepository {
       yearsSinceMenopause: 20,
       minimalTraumaFracture: true,
       fractureSite: 'vertebral',
-      egfr: 54,
+      egfr: true,
       frailty: 4,
       lifeExpectancy: 10,
       residentialCare: false,
@@ -571,9 +571,7 @@ class MockAppRepository implements AppRepository {
   }) async {
     _require(UserRole.clinician);
     final definition = pathwayFactRegistry[fieldKey];
-    if (definition == null ||
-        (definition.kind == PathwayFactKind.boolean && value is! bool) ||
-        (definition.kind == PathwayFactKind.number && value is! num)) {
+    if (definition == null || !definition.accepts(value)) {
       throw const AppException('This pathway answer has an unsupported type.');
     }
     final row = _cases[caseId];
@@ -618,6 +616,11 @@ class MockAppRepository implements AppRepository {
     }
     final result = _mockLiveEvaluate(
       Map<String, Object?>.from(row['clinician_facts'] as Map? ?? const {}),
+      patient: _users[row['patient_id']],
+      menopause: _questionnaireResponses.containsKey(row['patient_id'])
+          ? _questionnaireResponses[row['patient_id']]!
+                .answers['postmenopausal']
+          : (row['facts'] as Map?)?['postmenopausal'],
     );
     row['pathway'] = result.pathwayId;
     row['updated_at'] = DateTime.now().toUtc().toIso8601String();
@@ -631,7 +634,11 @@ class MockAppRepository implements AppRepository {
     return result;
   }
 
-  LivePathwayResult _mockLiveEvaluate(Map<String, Object?> facts) {
+  LivePathwayResult _mockLiveEvaluate(
+    Map<String, Object?> facts, {
+    required AppUser? patient,
+    required Object? menopause,
+  }) {
     final trace = <LivePathwayTraceEntry>[];
     PathwayQuestionStep ask(
       String pathway,
@@ -676,15 +683,93 @@ class MockAppRepository implements AppRepository {
     bool anyMissing(List<String> keys) =>
         keys.any((key) => !facts.containsKey(key));
 
-    if (!facts.containsKey('eGFR')) {
+    final sex = patient?.sexAtBirth;
+    final age = _ageFromDateOfBirth(patient?.dateOfBirth);
+    final menopausal = menopause == true || menopause == 'Yes'
+        ? true
+        : menopause == false || menopause == 'No'
+        ? false
+        : null;
+    final demographic = sex == 'female'
+        ? menopausal
+        : sex == 'male'
+        ? (age == null ? null : age > 50)
+        : sex == null
+        ? null
+        : false;
+    if (demographic == null) {
+      return const PathwayRuntimeError(
+        pathwayId: 'PATHWAY1',
+        trace: [],
+        message:
+            'More information is required before the recommendation can be completed. Check the patient profile or submitted questionnaire.',
+      );
+    }
+    visit(
+      'PATHWAY1',
+      'P1_DEMOGRAPHIC_ELIGIBILITY',
+      demographic,
+      demographic ? 'MINIMAL_TRAUMA_KNOWN' : 'P1_ELIGIBILITY_NOT_MET',
+    );
+    if (!demographic) {
+      return PathwayRuntimeError(
+        pathwayId: 'PATHWAY1',
+        trace: trace,
+        message:
+            'The patient does not meet the P1 entry criteria. Clinician review is required before choosing another pathway.',
+      );
+    }
+    for (final key in ['minimalTraumaFracture', 'fractureSite']) {
+      if (!pathwayFactRegistry[key]!.accepts(facts[key])) {
+        return ask(
+          'PATHWAY1',
+          key == 'minimalTraumaFracture'
+              ? 'MINIMAL_TRAUMA_KNOWN'
+              : 'FRACTURE_SITE_KNOWN',
+          key == 'minimalTraumaFracture'
+              ? 'Did the fracture occur after a fall from standing height or less?'
+              : 'Where was the fracture?',
+          [key],
+        );
+      }
+      if (facts[key] == 'not_sure') {
+        return PathwayRuntimeError(
+          pathwayId: 'PATHWAY1',
+          trace: trace,
+          message:
+              'More information is required before the recommendation can be completed. Confirm the fracture mechanism and site.',
+        );
+      }
+      if ((key == 'minimalTraumaFracture' && facts[key] == 'no') ||
+          (key == 'fractureSite' &&
+              ['hand', 'foot', 'face', 'ankle'].contains(facts[key]))) {
+        return PathwayRuntimeError(
+          pathwayId: 'PATHWAY1',
+          trace: trace,
+          message:
+              'The patient does not meet the P1 entry criteria. Clinician review is required before choosing another pathway.',
+        );
+      }
+      visit(
+        'PATHWAY1',
+        key == 'minimalTraumaFracture'
+            ? 'MINIMAL_TRAUMA_FRACTURE'
+            : 'FRACTURE_SITE_ELIGIBLE',
+        true,
+        key == 'minimalTraumaFracture'
+            ? 'FRACTURE_SITE_KNOWN'
+            : 'RENAL_DYSFUNCTION',
+      );
+    }
+    if (facts['eGFR'] is! bool) {
       return ask(
         'PATHWAY1',
         'RENAL_DYSFUNCTION',
-        "What is the patient's eGFR value? (Unit: mL/min)",
+        "Is the patient's eGFR 30 mL/min or higher?",
         const ['eGFR'],
       );
     }
-    final renalOk = (facts['eGFR'] as num) > 30;
+    final renalOk = facts['eGFR'] as bool;
     visit(
       'PATHWAY1',
       'RENAL_DYSFUNCTION',
@@ -866,9 +951,9 @@ class MockAppRepository implements AppRepository {
         'Is the patient currently on antiresorptive treatment?',
       ),
       (
-        'ANTIRESORPTIVE_DURATION',
-        'antiresorptiveTreatmentDuration',
-        'Has the patient been receiving their pre-existing antiresorptive treatment for 12 months or longer?',
+        'ANTIRESORPTIVE_TREATMENT_DURATION',
+        'antiresorptiveTreatmentOver12Months',
+        'Has the patient used the current antiresorptive treatment for more than 12 months?',
       ),
       (
         'TREATMENT_ADHERENCE',
@@ -920,6 +1005,20 @@ class MockAppRepository implements AppRepository {
           nextNodeId: null,
         ),
       );
+      if (node.$2 == 'antiresorptiveTreatmentOver12Months' &&
+          facts[node.$2] == false) {
+        return CompletedPathwayEvaluation(
+          pathwayId: 'PATHWAY2',
+          trace: List.unmodifiable(trace),
+          actions: const [
+            {
+              'type': 'recommendation',
+              'recommendation':
+                  'Review standard antiresorptive treatment options.',
+            },
+          ],
+        );
+      }
     }
     const action = 'Review ongoing treatment and sequencing options.';
     trace.add(
@@ -941,6 +1040,7 @@ class MockAppRepository implements AppRepository {
 
   Map<String, dynamic> _liveResultJson(CompletedPathwayEvaluation result) => {
     'status': 'complete',
+    'contractVersion': 'songyi-p1p2-20261008',
     'pathwayId': result.pathwayId,
     'actions': result.actions,
     'trace': result.trace
@@ -1428,7 +1528,7 @@ class MockAppRepository implements AppRepository {
     }
 
     evaluationInput = {'eGFR': facts['eGFR']};
-    final egfr = requireNum('eGFR');
+    final egfr = requireBool('eGFR');
     if (egfr == null) {
       return missingRule(
         'RENAL_DYSFUNCTION',
@@ -1437,7 +1537,7 @@ class MockAppRepository implements AppRepository {
         ['eGFR'],
       )!;
     }
-    final renalMatched = egfr < 30;
+    final renalMatched = !egfr;
     addTrace(
       'RENAL_DYSFUNCTION',
       renalMatched,

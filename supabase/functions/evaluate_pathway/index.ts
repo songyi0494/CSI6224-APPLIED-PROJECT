@@ -2,9 +2,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import type { DecisionTreeRule } from "./types/decisionTree.ts";
 import pathway1 from "./rules/pathway_1.json" with { type: "json" };
 import pathway2 from "./rules/pathway_2.json" with { type: "json" };
-import { evaluateDecisionTree } from "./engine/evaluateDecisionTree.ts";
-import { validateFacts } from "./engine/validateFacts.ts";
-import { factSchema } from "./engine/factSchema.ts";
+import { evaluateCasePathway, contractVersion } from "./engine/evaluateCasePathway.ts";
+import type { EligibilityContext } from "./engine/evaluateCasePathway.ts";
 
 const docs: Record<string, DecisionTreeRule> = {
     PATHWAY1: pathway1 as DecisionTreeRule,
@@ -95,6 +94,7 @@ Deno.serve(async (req: Request) => {
             status: string;
             pathway_revision: number;
             investigation_revision: number;
+            eligibility_context: EligibilityContext;
         };
 
         const facts = clinicalCase.clinician_facts as Record<string, unknown> | null;
@@ -105,37 +105,13 @@ Deno.serve(async (req: Request) => {
             );
         }
 
-        const validation = validateFacts(facts, factSchema);
-
-        if (!validation.valid) {
-            return new Response(
-                JSON.stringify({
-                    status: "error",
-                    error: {
-                        code: "INVALID_FACT_VALUE",
-                        fields: validation.fields,
-                        message: validation.errors.join("; "),
-                    },
-                    actions: [],
-                    trace: [],
-                }),
-                {
-                    status: 400,
-                    headers: {
-                        ...corsHeaders,
-                        "Content-Type": "application/json",
-                    },
-                }
-            );
-        }
-
-        const result = evaluateDecisionTree(docs, facts, "PATHWAY1");
+        const result = evaluateCasePathway(docs, facts, clinicalCase.eligibility_context);
 
         if (result.status === "complete") {
             const { error: saveError } =
                 await supabase.rpc("save_rule_evaluation", {
                     p_case_id: caseId,
-                    p_evaluation: result,
+                    p_evaluation: { ...result, contractVersion, eligibilityContext: clinicalCase.eligibility_context },
                     p_expected_pathway_revision:
                         clinicalCase.pathway_revision,
                     p_expected_investigation_revision:

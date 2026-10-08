@@ -391,9 +391,7 @@ class SupabaseAppRepository implements AppRepository {
     required Object value,
   }) => _call(() async {
     final definition = pathwayFactRegistry[fieldKey];
-    if (definition == null ||
-        (definition.kind == PathwayFactKind.boolean && value is! bool) ||
-        (definition.kind == PathwayFactKind.number && value is! num)) {
+    if (definition == null || !definition.accepts(value)) {
       throw const AppException('This pathway answer has an unsupported type.');
     }
     await client.rpc(

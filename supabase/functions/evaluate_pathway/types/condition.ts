@@ -1,4 +1,4 @@
-export type Operator = 'equals';
+export type Operator = 'equals' | 'in' | 'notIn';
 
 export interface SimpleCondition {
     fact: string;

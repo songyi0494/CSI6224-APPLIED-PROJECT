@@ -5,14 +5,15 @@ import 'package:csi6224_patient_feedback/utils/clinical_trace_presentation.dart'
 import 'package:csi6224_patient_feedback/widgets/pathway_action_view.dart';
 
 void main() {
-  test('renal trace uses actual greater-than condition and recorded branch', () {
+  test('renal trace uses Boolean threshold condition and recorded branch', () {
     final display = clinicalTracePresentation(ReasoningTraceEntry.fromJson({
       'nodeId': 'RENAL_DYSFUNCTION', 'nodeType': 'decision',
       'pathwayId': 'PATHWAY1', 'matched': true,
+      'contractVersion': 'songyi-p1p2-20261008',
       'nextNodeId': 'ON_OSTEOPOROSIS_TREATMENT',
     }));
     expect(display.title, contains('eGFR'));
-    expect(display.details.single, contains('> 30'));
+    expect(display.details.single, contains('≥30 mL/min = Yes'));
     expect(display.result, 'Condition met.');
     expect(display.implication, contains('currently on osteoporosis treatment'));
   });

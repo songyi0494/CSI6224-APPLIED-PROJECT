@@ -80,7 +80,7 @@ class _PathwayQuestionScreenState extends State<PathwayQuestionScreen> {
       final definition = pathwayFactRegistry[key];
       if (definition == null)
         throw AppException('The pathway requested unsupported field "$key".');
-      _draft[key] = stored[key];
+      _draft[key] = definition.accepts(stored[key]) ? stored[key] : null;
       if (definition.kind == PathwayFactKind.number) {
         _controllers[key] = TextEditingController(
           text: stored[key]?.toString() ?? '',
@@ -91,7 +91,7 @@ class _PathwayQuestionScreenState extends State<PathwayQuestionScreen> {
 
   Object? _valueFor(String key) {
     final definition = pathwayFactRegistry[key]!;
-    if (definition.kind == PathwayFactKind.boolean) return _draft[key];
+    if (definition.kind != PathwayFactKind.number) return _draft[key];
     final raw = _controllers[key]!.text.trim();
     if (raw.isEmpty) return null;
     return definition.wholeNumber ? int.tryParse(raw) : double.tryParse(raw);
@@ -157,7 +157,23 @@ class _PathwayQuestionScreenState extends State<PathwayQuestionScreen> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: Text('Edit ${definition.label}'),
-          content: definition.kind == PathwayFactKind.boolean
+          content: definition.kind == PathwayFactKind.choice
+              ? DropdownButtonFormField<String>(
+                  initialValue: definition.accepts(value)
+                      ? value as String
+                      : null,
+                  decoration: InputDecoration(labelText: definition.label),
+                  items: definition.choices.entries
+                      .map(
+                        (entry) => DropdownMenuItem(
+                          value: entry.key,
+                          child: Text(entry.value),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (next) => setDialogState(() => value = next),
+                )
+              : definition.kind == PathwayFactKind.boolean
               ? DropdownButtonFormField<bool>(
                   initialValue: value as bool?,
                   decoration: const InputDecoration(
@@ -219,6 +235,24 @@ class _PathwayQuestionScreenState extends State<PathwayQuestionScreen> {
 
   Widget _control(String key) {
     final definition = pathwayFactRegistry[key]!;
+    if (definition.kind == PathwayFactKind.choice) {
+      return DropdownButtonFormField<String>(
+        key: ValueKey('$key-${_draft[key]}'),
+        initialValue: _draft[key] as String?,
+        decoration: InputDecoration(labelText: definition.label),
+        items: definition.choices.entries
+            .map(
+              (entry) =>
+                  DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+            )
+            .toList(),
+        onChanged: _busy
+            ? null
+            : (value) => setState(() => _draft[key] = value),
+        validator: (value) =>
+            value == null ? 'Clinician confirmation is required' : null,
+      );
+    }
     if (definition.kind == PathwayFactKind.boolean) {
       return DropdownButtonFormField<bool>(
         key: ValueKey('$key-${_draft[key]}'),
@@ -381,6 +415,10 @@ class _PathwayQuestionScreenState extends State<PathwayQuestionScreen> {
   }
 
   static const _nodeFacts = <String, List<String>>{
+    'MINIMAL_TRAUMA_KNOWN': ['minimalTraumaFracture'],
+    'MINIMAL_TRAUMA_FRACTURE': ['minimalTraumaFracture'],
+    'FRACTURE_SITE_KNOWN': ['fractureSite'],
+    'FRACTURE_SITE_ELIGIBLE': ['fractureSite'],
     'RENAL_DYSFUNCTION': ['eGFR'],
     'ON_OSTEOPOROSIS_TREATMENT': ['osteoporosisTreatmentStatus'],
     'RESIDENTIAL_OR_FRAILTY': [
@@ -406,7 +444,10 @@ class _PathwayQuestionScreenState extends State<PathwayQuestionScreen> {
       'FRAX10YmajorHipFractureRiskPercent',
     ],
     'ON_ANTIRESORPTIVE_TREATMENT': ['antiresorptiveTreatmentStatus'],
-    'ANTIRESORPTIVE_DURATION': ['antiresorptiveTreatmentDuration'],
+    'ANTIRESORPTIVE_TREATMENT_DURATION': [
+      'antiresorptiveTreatmentOver12Months',
+    ],
+    'ANTIRESORPTIVE_DURATION': ['antiresorptiveTreatmentOver12Months'],
     'TREATMENT_ADHERENCE': ['adheredToTheTreatment'],
     'SYMPTOMATIC_FRACTURE': ['symptomaticFractureInLast12M'],
     'MULTIPLE_FRACTURES': ['multipleFractures'],

@@ -20,7 +20,7 @@ MockAppRepository repository() => MockAppRepository(
 );
 
 const completePathway1ClinicianInput = Pathway1ClinicianInput(
-  egfr: 54,
+  egfr: true,
   clinicalFrailtyScore: 4,
   lifeExpectancy: 10,
   knownPoorMedicationAdherence: false,
@@ -175,8 +175,10 @@ void main() {
       );
       expect(find.text('Clinical pathway'), findsOneWidget);
       expect(
-        find.text("What is the patient's eGFR value? (Unit: mL/min)"),
-        findsOneWidget,
+        find.text(
+          'Did the fracture occur after a fall from standing height or less?',
+        ),
+        findsWidgets,
       );
       expect(find.text('More clinical information required'), findsNothing);
       expect(find.text('PATHWAY1'), findsNothing);

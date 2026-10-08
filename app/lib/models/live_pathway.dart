@@ -1,4 +1,4 @@
-enum PathwayFactKind { boolean, number }
+enum PathwayFactKind { boolean, number, choice }
 
 class PathwayFactDefinition {
   const PathwayFactDefinition({
@@ -8,6 +8,7 @@ class PathwayFactDefinition {
     this.unit,
     this.wholeNumber = false,
     this.allowNegative = false,
+    this.choices = const {},
   });
 
   final String key;
@@ -16,16 +17,47 @@ class PathwayFactDefinition {
   final String? unit;
   final bool wholeNumber;
   final bool allowNegative;
+  final Map<String, String> choices;
+
+  bool accepts(Object? value) => switch (kind) {
+    PathwayFactKind.boolean => value is bool,
+    PathwayFactKind.number => value is num && value.isFinite,
+    PathwayFactKind.choice => value is String && choices.containsKey(value),
+  };
 }
 
-/// Presentation/type metadata absent from evaluate_pathway v12.
-/// Keys and JSON types are an explicit mirror of the deployed P1/P2 rules.
+/// Editable facts for the local P1/P2 rule contract.
+/// Demographic eligibility is supplied by the protected server context.
 const pathwayFactRegistry = <String, PathwayFactDefinition>{
   'eGFR': PathwayFactDefinition(
     key: 'eGFR',
-    label: 'eGFR',
-    kind: PathwayFactKind.number,
-    unit: 'mL/min',
+    label: 'eGFR ≥30 mL/min?',
+    kind: PathwayFactKind.boolean,
+  ),
+  'minimalTraumaFracture': PathwayFactDefinition(
+    key: 'minimalTraumaFracture',
+    label: 'Did the fracture occur after a fall from standing height or less?',
+    kind: PathwayFactKind.choice,
+    choices: {'yes': 'Yes', 'no': 'No', 'not_sure': 'Not sure'},
+  ),
+  'fractureSite': PathwayFactDefinition(
+    key: 'fractureSite',
+    label: 'Fracture site',
+    kind: PathwayFactKind.choice,
+    choices: {
+      'hip': 'Hip',
+      'vertebral': 'Spine',
+      'pelvis': 'Pelvis',
+      'upper_arm': 'Upper arm',
+      'forearm': 'Forearm',
+      'leg': 'Leg',
+      'ribs': 'Ribs',
+      'hand': 'Hand',
+      'foot': 'Foot',
+      'face': 'Face',
+      'ankle': 'Ankle',
+      'not_sure': 'Not sure',
+    },
   ),
   'osteoporosisTreatmentStatus': PathwayFactDefinition(
     key: 'osteoporosisTreatmentStatus',
@@ -119,9 +151,10 @@ const pathwayFactRegistry = <String, PathwayFactDefinition>{
     label: 'Currently on antiresorptive treatment',
     kind: PathwayFactKind.boolean,
   ),
-  'antiresorptiveTreatmentDuration': PathwayFactDefinition(
-    key: 'antiresorptiveTreatmentDuration',
-    label: 'Antiresorptive treatment for 12 months or longer',
+  'antiresorptiveTreatmentOver12Months': PathwayFactDefinition(
+    key: 'antiresorptiveTreatmentOver12Months',
+    label:
+        'Has the patient used the current antiresorptive treatment for more than 12 months?',
     kind: PathwayFactKind.boolean,
   ),
   'adheredToTheTreatment': PathwayFactDefinition(
@@ -222,8 +255,10 @@ sealed class LivePathwayResult {
     }
     return PathwayRuntimeError(
       pathwayId: json['pathwayId']?.toString() ?? '',
-      message:
-          json['error']?.toString() ?? 'The pathway could not be evaluated.',
+      message: json['error'] is Map
+          ? (json['error'] as Map)['message']?.toString() ??
+                'The pathway could not be evaluated.'
+          : json['error']?.toString() ?? 'The pathway could not be evaluated.',
       trace: trace,
     );
   }

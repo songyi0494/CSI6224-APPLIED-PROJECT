@@ -14,7 +14,13 @@ export interface LeafNode {
     actions: Action[];
 }
 
-export type TreeNode = DecisionNode | LeafNode;
+export interface ReviewNode {
+    type: "review";
+    code: "ELIGIBILITY_NOT_MET" | "ELIGIBILITY_INFORMATION_REQUIRED";
+    message: string;
+}
+
+export type TreeNode = DecisionNode | LeafNode | ReviewNode;
 
 export interface DecisionTreeRule {
     metadata: {
@@ -28,14 +34,14 @@ export interface DecisionTreeRule {
 export interface TraceEntry {
     pathwayId?: string;
     nodeId: string;
-    nodeType: "decision" | "leaf";
+    nodeType: "decision" | "leaf" | "review";
     matched?: boolean;
     nextNodeId?: string;
     actionsTriggered: Action[];
 }
 
 export interface EvaluationError {
-    code: "MISSING_REQUIRED_FIELDS" | "INVALID_FACT_VALUE" | "NODE_NOT_FOUND" | "REDIRECT_LOOP" | "PATHWAY_NOT_FOUND";
+    code: "MISSING_REQUIRED_FIELDS" | "INVALID_FACT_VALUE" | "NODE_NOT_FOUND" | "REDIRECT_LOOP" | "PATHWAY_NOT_FOUND" | "ELIGIBILITY_NOT_MET" | "ELIGIBILITY_INFORMATION_REQUIRED";
     fields?: string[];
     nodeId?: string;
     pathwayId?: string;

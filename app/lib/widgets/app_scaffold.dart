@@ -1,3 +1,4 @@
+import 'global_sign_out.dart';
 import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
@@ -28,11 +29,7 @@ class AppScaffold extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Center(child: Text(user.displayName)),
           ),
-          IconButton(
-            tooltip: 'Sign out',
-            onPressed: onSignOut,
-            icon: const Icon(Icons.logout),
-          ),
+          GlobalSignOutButton(onPressed: onSignOut),
         ],
       ),
       floatingActionButton: floatingActionButton,

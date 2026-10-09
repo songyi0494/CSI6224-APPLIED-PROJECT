@@ -30,13 +30,11 @@ void main() {
 
   const completeClinicianInput = Pathway1ClinicianInput(
     egfr: true,
-    clinicalFrailtyScore: 4,
-    lifeExpectancy: 10,
-    knownPoorMedicationAdherence: false,
-    cognitiveImpairment: false,
+    frailtyResidentialOrLimitedLifeExpectancy: false,
+    adherenceConcern: false,
     dxaDoneWithinPrevious2Years: true,
     dxaImpractical: false,
-    tScoreValue: -3.5,
+    tScoreAtOrBelowMinus2_5AnySite: true,
     tScoreSite: 'hip',
     hipVertebralOrMultipleFracturesInLast24M: true,
     yearsSinceMenopause: 20,
@@ -174,13 +172,11 @@ void main() {
         assessment: await localRepo.fetchClinicalCase(a.id),
         input: const Pathway1ClinicianInput(
           egfr: true,
-          clinicalFrailtyScore: 4,
-          lifeExpectancy: 10,
-          knownPoorMedicationAdherence: false,
-          cognitiveImpairment: false,
+          frailtyResidentialOrLimitedLifeExpectancy: false,
+          adherenceConcern: false,
           dxaDoneWithinPrevious2Years: true,
           dxaImpractical: false,
-          tScoreValue: -3.5,
+          tScoreAtOrBelowMinus2_5AnySite: true,
           tScoreSite: 'hip',
           hipVertebralOrMultipleFracturesInLast24M: false,
           yearsSinceMenopause: 20,
@@ -188,7 +184,10 @@ void main() {
       );
       expect(review.status, ClinicalCaseStatus.clinicianInputRequired);
       expect(review.evaluation!.decision, 'needs_more_information');
-      expect(review.evaluation!.missingInputs, contains('highRisk'));
+      expect(
+        review.evaluation!.missingInputs,
+        contains('veryHighFractureRisk'),
+      );
       expect(
         review.evaluation!.trace.last.ruleId,
         'HIGH_RISK_WITHOUT_RECENT_MAJOR_FRACTURE',
@@ -393,48 +392,51 @@ void main() {
       }
     },
   );
-  test('needs more information does not reopen direct patient editing', () async {
-    final localRepo = MockAppRepository();
-    await localRepo.signIn(
-      email: 'patient@example.test',
-      password: 'DemoPass123!',
-    );
-    final a = (await localRepo.fetchClinicalCases()).single;
-    await localRepo.submitAssessment(
-      id: a.id,
-      revision: a.revision,
-      input: a.input,
-    );
-    await localRepo.signIn(
-      email: 'clinician@example.test',
-      password: 'DemoPass123!',
-    );
-    final review = await localRepo.completePathway1ClinicianInput(
-      assessment: await localRepo.fetchClinicalCase(a.id),
-      input: completeClinicianInput,
-    );
-    await localRepo.recordClinicianDecision(
-      assessment: review,
-      decision: ClinicalCaseStatus.needsMoreInfo,
-      notes: 'Please confirm additional information.',
-    );
+  test(
+    'needs more information does not reopen direct patient editing',
+    () async {
+      final localRepo = MockAppRepository();
+      await localRepo.signIn(
+        email: 'patient@example.test',
+        password: 'DemoPass123!',
+      );
+      final a = (await localRepo.fetchClinicalCases()).single;
+      await localRepo.submitAssessment(
+        id: a.id,
+        revision: a.revision,
+        input: a.input,
+      );
+      await localRepo.signIn(
+        email: 'clinician@example.test',
+        password: 'DemoPass123!',
+      );
+      final review = await localRepo.completePathway1ClinicianInput(
+        assessment: await localRepo.fetchClinicalCase(a.id),
+        input: completeClinicianInput,
+      );
+      await localRepo.recordClinicianDecision(
+        assessment: review,
+        decision: ClinicalCaseStatus.needsMoreInfo,
+        notes: 'Please confirm additional information.',
+      );
 
-    await localRepo.signIn(
-      email: 'patient@example.test',
-      password: 'DemoPass123!',
-    );
-    final current = (await localRepo.fetchClinicalCases()).single;
-    expect(current.status, ClinicalCaseStatus.needsMoreInfo);
-    expect(current.canEdit, isFalse);
-    expect(
-      () => localRepo.saveAssessment(
-        id: current.id,
-        revision: current.revision,
-        input: current.input,
-      ),
-      throwsA(isA<AppException>()),
-    );
-  });
+      await localRepo.signIn(
+        email: 'patient@example.test',
+        password: 'DemoPass123!',
+      );
+      final current = (await localRepo.fetchClinicalCases()).single;
+      expect(current.status, ClinicalCaseStatus.needsMoreInfo);
+      expect(current.canEdit, isFalse);
+      expect(
+        () => localRepo.saveAssessment(
+          id: current.id,
+          revision: current.revision,
+          input: current.input,
+        ),
+        throwsA(isA<AppException>()),
+      );
+    },
+  );
   test('manual review blocks duplicate active assessments', () async {
     final localRepo = MockAppRepository();
     await localRepo.signIn(
@@ -529,71 +531,76 @@ void main() {
     expect(second.revision, first.revision);
     expect(await localRepo.fetchClinicalCases(), hasLength(1));
   });
-  test('patient can withdraw submitted assessment before clinician input', () async {
-    final localRepo = MockAppRepository();
-    await localRepo.signIn(
-      email: 'patient@example.test',
-      password: 'DemoPass123!',
-    );
-    final a = (await localRepo.fetchClinicalCases()).single;
-    final submitted = await localRepo.submitAssessment(
-      id: a.id,
-      revision: a.revision,
-      input: a.input,
-    );
+  test(
+    'patient can withdraw submitted assessment before clinician input',
+    () async {
+      final localRepo = MockAppRepository();
+      await localRepo.signIn(
+        email: 'patient@example.test',
+        password: 'DemoPass123!',
+      );
+      final a = (await localRepo.fetchClinicalCases()).single;
+      final submitted = await localRepo.submitAssessment(
+        id: a.id,
+        revision: a.revision,
+        input: a.input,
+      );
 
-    await localRepo.signIn(
-      email: 'clinician@example.test',
-      password: 'DemoPass123!',
-    );
-    expect(await localRepo.fetchClinicalCases(), hasLength(1));
+      await localRepo.signIn(
+        email: 'clinician@example.test',
+        password: 'DemoPass123!',
+      );
+      expect(await localRepo.fetchClinicalCases(), hasLength(1));
 
-    await localRepo.signIn(
-      email: 'patient@example.test',
-      password: 'DemoPass123!',
-    );
-    final withdrawn = await localRepo.withdrawAssessment(assessment: submitted);
-    expect(withdrawn.id, submitted.id);
-    expect(withdrawn.revision, submitted.revision);
-    expect(withdrawn.status, ClinicalCaseStatus.draft);
-    expect(withdrawn.input.toFacts(), submitted.input.toFacts());
+      await localRepo.signIn(
+        email: 'patient@example.test',
+        password: 'DemoPass123!',
+      );
+      final withdrawn = await localRepo.withdrawAssessment(
+        assessment: submitted,
+      );
+      expect(withdrawn.id, submitted.id);
+      expect(withdrawn.revision, submitted.revision);
+      expect(withdrawn.status, ClinicalCaseStatus.draft);
+      expect(withdrawn.input.toFacts(), submitted.input.toFacts());
 
-    await localRepo.signIn(
-      email: 'clinician@example.test',
-      password: 'DemoPass123!',
-    );
-    expect(await localRepo.fetchClinicalCases(), isEmpty);
+      await localRepo.signIn(
+        email: 'clinician@example.test',
+        password: 'DemoPass123!',
+      );
+      expect(await localRepo.fetchClinicalCases(), isEmpty);
 
-    await localRepo.signIn(
-      email: 'patient@example.test',
-      password: 'DemoPass123!',
-    );
-    final facts = Map<String, dynamic>.from(withdrawn.input.toFacts())
-      ..['fractureSite'] = 'hip';
-    final resubmitted = await localRepo.submitAssessment(
-      id: withdrawn.id,
-      revision: withdrawn.revision,
-      input: ClinicalInput.fromFacts(facts),
-    );
-    expect(resubmitted.id, submitted.id);
-    expect(resubmitted.status, ClinicalCaseStatus.clinicianInputRequired);
-    expect(resubmitted.input.fractureSite, 'hip');
-    expect(resubmitted.revision, withdrawn.revision + 1);
-    expect(
-      () => localRepo.saveAssessment(
-        id: 'second-active-after-withdraw',
-        revision: 0,
-        input: resubmitted.input,
-      ),
-      throwsA(isA<AppException>()),
-    );
+      await localRepo.signIn(
+        email: 'patient@example.test',
+        password: 'DemoPass123!',
+      );
+      final facts = Map<String, dynamic>.from(withdrawn.input.toFacts())
+        ..['fractureSite'] = 'hip';
+      final resubmitted = await localRepo.submitAssessment(
+        id: withdrawn.id,
+        revision: withdrawn.revision,
+        input: ClinicalInput.fromFacts(facts),
+      );
+      expect(resubmitted.id, submitted.id);
+      expect(resubmitted.status, ClinicalCaseStatus.clinicianInputRequired);
+      expect(resubmitted.input.fractureSite, 'hip');
+      expect(resubmitted.revision, withdrawn.revision + 1);
+      expect(
+        () => localRepo.saveAssessment(
+          id: 'second-active-after-withdraw',
+          revision: 0,
+          input: resubmitted.input,
+        ),
+        throwsA(isA<AppException>()),
+      );
 
-    await localRepo.signIn(
-      email: 'clinician@example.test',
-      password: 'DemoPass123!',
-    );
-    expect(await localRepo.fetchClinicalCases(), hasLength(1));
-  });
+      await localRepo.signIn(
+        email: 'clinician@example.test',
+        password: 'DemoPass123!',
+      );
+      expect(await localRepo.fetchClinicalCases(), hasLength(1));
+    },
+  );
   test('withdrawal is blocked after clinician processing starts', () async {
     final localRepo = MockAppRepository();
     await localRepo.signIn(
@@ -696,13 +703,11 @@ void main() {
       assessment: await localRepo.fetchClinicalCase(a.id),
       input: const Pathway1ClinicianInput(
         egfr: true,
-        clinicalFrailtyScore: 4,
-        lifeExpectancy: 10,
-        knownPoorMedicationAdherence: false,
-        cognitiveImpairment: false,
+        frailtyResidentialOrLimitedLifeExpectancy: false,
+        adherenceConcern: false,
         dxaDoneWithinPrevious2Years: true,
         dxaImpractical: false,
-        tScoreValue: -3.5,
+        tScoreAtOrBelowMinus2_5AnySite: true,
         tScoreSite: 'hip',
         hipVertebralOrMultipleFracturesInLast24M: false,
         yearsSinceMenopause: 20,
@@ -714,16 +719,14 @@ void main() {
       assessment: needsHighRisk,
       input: const Pathway1ClinicianInput(
         egfr: true,
-        clinicalFrailtyScore: 4,
-        lifeExpectancy: 10,
-        knownPoorMedicationAdherence: false,
-        cognitiveImpairment: false,
+        frailtyResidentialOrLimitedLifeExpectancy: false,
+        adherenceConcern: false,
         dxaDoneWithinPrevious2Years: true,
         dxaImpractical: false,
-        tScoreValue: -3.5,
+        tScoreAtOrBelowMinus2_5AnySite: true,
         tScoreSite: 'hip',
         hipVertebralOrMultipleFracturesInLast24M: false,
-        clinicianConfirmedVeryHighRisk: true,
+        veryHighFractureRisk: true,
         yearsSinceMenopause: 20,
       ),
     );

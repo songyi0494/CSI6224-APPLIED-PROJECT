@@ -38,7 +38,7 @@ void main() {
     expect(find.text('Medication alternatives'), findsOneWidget);
     expect(find.text('Example A'), findsOneWidget);
     expect(find.text('Example B'), findsOneWidget);
-    expect(find.text('Follow up with GP'), findsOneWidget);
+    expect(find.text('Follow up with GP.'), findsOneWidget);
     expect(find.text('Option 1:'), findsNothing);
   });
 }

@@ -45,8 +45,8 @@ void main() {
 
       expect(review.commonAdvice, [
         'Vitamin D advice',
-        'Protein advice',
         'Exercise advice',
+        'Protein advice',
       ]);
       expect(review.investigationRevision, 2);
       expect(review.questionnaireRevision, 3);

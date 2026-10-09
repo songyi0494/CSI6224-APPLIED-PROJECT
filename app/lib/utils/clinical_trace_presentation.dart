@@ -27,34 +27,66 @@ ClinicalTracePresentation clinicalTracePresentation(
   // Use the saved traversal, with display metadata from the supplied rules.
   if (trace.nodeType != null) {
     final key = '${trace.pathwayId}:${trace.ruleId}';
-    final currentContract = trace.contractVersion == 'songyi-p1p2-20261008';
+    final adherenceContract =
+        trace.contractVersion == 'songyi-p1p2-20261009-adherence';
+    final careContract =
+        adherenceContract ||
+        trace.contractVersion == 'songyi-p1p2-20261009-care';
+    final bmdContract =
+        careContract || trace.contractVersion == 'songyi-p1p2-20261009-bmd';
+    final legacyCare =
+        !careContract && key == 'PATHWAY1:RESIDENTIAL_OR_FRAILTY';
+    final currentContract =
+        bmdContract || trace.contractVersion == 'songyi-p1p2-20261008';
+    final legacyBmd =
+        !bmdContract &&
+        ['PATHWAY1:T_SCORE_CHECK', 'PATHWAY1:HIGH_RISK_CHECK'].contains(key);
     // Do not apply the new boundary meaning to an older saved answer.
     final legacyEgfr = !currentContract && key == 'PATHWAY1:RENAL_DYSFUNCTION';
-    final legacyDuration = !currentContract && key == 'PATHWAY2:ANTIRESORPTIVE_TREATMENT_DURATION';
-    final condition = legacyEgfr
+    final legacyDuration =
+        !currentContract && key == 'PATHWAY2:ANTIRESORPTIVE_TREATMENT_DURATION';
+    final legacyAdherence =
+        !adherenceContract && key == 'PATHWAY1:ADHERENCE_CONCERN';
+    final condition = legacyAdherence
+        ? 'Historical adherence-component decision. Fresh adherence-concern confirmation is required.'
+        : legacyCare
+        ? 'Historical care-component decision. Fresh confirmation of the complete OR criterion is required.'
+        : legacyBmd
+        ? 'Historical component-based decision. Fresh current-contract clinician confirmation is required.'
+        : legacyEgfr
         ? 'Historical eGFR answer. Confirm the current ≥30 mL/min threshold before a new evaluation.'
         : legacyDuration
         ? 'Historical duration answer. Confirm more than 12 months before a new evaluation.'
         : liveNodeConditions[key];
-    final next = trace.nextNodeId == null ? null
-        : liveNodeLabels['${trace.pathwayId}:${trace.nextNodeId}']
-          ?? trace.nextNodeId;
+    final next = trace.nextNodeId == null
+        ? null
+        : liveNodeLabels['${trace.pathwayId}:${trace.nextNodeId}'] ??
+              trace.nextNodeId;
     final redirects = trace.actionsTriggered.where(
-      (action) => action.type == 'pathwayRedirect');
+      (action) => action.type == 'pathwayRedirect',
+    );
     final result = trace.nodeType == 'leaf'
         ? (redirects.isNotEmpty
-            ? redirects.map((action) => action.description).join('; ')
-            : 'Care recommendation reached. See Care Recommendation above.')
+              ? (key == 'PATHWAY1:LEAF_REDIRECT_PATHWAY2'
+                    ? 'The patient is currently taking osteoporosis treatment.'
+                    : 'The patient is not currently taking antiresorptive treatment.')
+              : 'Care recommendation reached. See Care Recommendation above.')
         : (trace.matched == null
-            ? 'Condition result was not recorded.'
-            : 'Condition ${trace.matched! ? 'met' : 'not met'}.');
+              ? 'Condition result was not recorded.'
+              : 'Condition ${trace.matched! ? 'met' : 'not met'}.');
     return ClinicalTracePresentation(
-      title: legacyEgfr ? 'Historical kidney function decision'
-          : legacyDuration ? 'Historical treatment duration decision'
+      title: legacyAdherence
+          ? 'Historical adherence-component decision'
+          : legacyCare
+          ? 'Historical residential-care, frailty or life-expectancy decision'
+          : legacyBmd
+          ? 'Historical bone-density or fracture-risk decision'
+          : legacyEgfr
+          ? 'Historical kidney function decision'
+          : legacyDuration
+          ? 'Historical treatment duration decision'
           : liveNodeLabels[key] ?? trace.ruleId,
-      details: [
-        if (condition != null) 'Rule checked: $condition',
-      ],
+      details: ['Rule checked: ${condition ?? "Care recommendation reached."}'],
       result: result,
       implication: next,
       technicalRuleId: trace.ruleId,
@@ -137,13 +169,22 @@ ClinicalTracePresentation clinicalTracePresentation(
       );
     case 'RESIDENTIAL_CARE_OR_SEVERE_FRAILTY_OR_SHORT_LIFE_EXPECTANCY':
       return ClinicalTracePresentation(
-        title: 'Frailty / care setting',
+        title: input.containsKey('frailtyResidentialOrLimitedLifeExpectancy')
+            ? 'Residential care, severe frailty, or limited life expectancy'
+            : 'Frailty / care setting',
         details: [
-          _line('Residential aged care', input['liveInResidentialCare']),
-          _line('Clinical Frailty Score', input['clinicalFrailtyScore']),
-          'Severe frailty threshold: >= 6',
-          _line('Life expectancy', input['lifeExpectancy'], suffix: ' years'),
-          'Short life expectancy threshold: < 7 years',
+          if (input.containsKey('frailtyResidentialOrLimitedLifeExpectancy'))
+            _line(
+              'Residential care, severe frailty, or limited life expectancy',
+              input['frailtyResidentialOrLimitedLifeExpectancy'],
+            )
+          else ...[
+            _line('Residential aged care', input['liveInResidentialCare']),
+            _line('Clinical Frailty Score', input['clinicalFrailtyScore']),
+            'Severe frailty threshold: >= 6',
+            _line('Life expectancy', input['lifeExpectancy'], suffix: ' years'),
+            'Short life expectancy threshold: < 7 years',
+          ],
         ],
         result: _result(
           trace,
@@ -155,20 +196,30 @@ ClinicalTracePresentation clinicalTracePresentation(
         technicalRuleId: trace.ruleId,
       );
     case 'ADHERENCE_CONCERN':
+      final aggregate =
+          trace.contractVersion == 'songyi-p1p2-20261009-adherence' ||
+          input.containsKey('adherenceConcern');
       return ClinicalTracePresentation(
-        title: 'Medication adherence',
+        title: aggregate
+            ? 'Treatment adherence concern'
+            : 'Historical adherence-component decision',
         details: [
-          _line(
-            'Known poor medication adherence',
-            input['knownPoorMedicationAdherence'],
-          ),
-          _line('Cognitive impairment', input['cognitiveImpairment']),
+          if (aggregate)
+            _line('Treatment-adherence concern', input['adherenceConcern'])
+          else ...[
+            _line(
+              'Known poor medication adherence',
+              input['knownPoorMedicationAdherence'],
+            ),
+            _line('Cognitive impairment', input['cognitiveImpairment']),
+          ],
         ],
         result: _result(
           trace,
           yes: 'Adherence-concern branch triggered.',
           no: 'Adherence-concern branch not triggered.',
-          unknown: 'Adherence and cognition information is needed.',
+          unknown:
+              'More information is required. Confirm treatment-adherence concern.',
         ),
         technicalRuleId: trace.ruleId,
       );
@@ -207,7 +258,13 @@ ClinicalTracePresentation clinicalTracePresentation(
       return ClinicalTracePresentation(
         title: 'Bone density',
         details: [
-          _line('T-score', input['T-score']),
+          if (input.containsKey('tScoreAtOrBelowMinus2_5AnySite'))
+            _line(
+              'T-score ≤ -2.5 at any relevant site',
+              input['tScoreAtOrBelowMinus2_5AnySite'],
+            )
+          else
+            _line('T-score', input['T-score']),
           if (clinicianInput?.tScoreSite != null)
             'Site: ${_siteText(clinicianInput!.tScoreSite!)}',
           'Clinical pathway threshold: <= -2.5',
@@ -250,7 +307,10 @@ ClinicalTracePresentation clinicalTracePresentation(
             'Recent major fracture criterion met',
             input['hipVertebralOrMultipleFracturesInLast24M'],
           ),
-          _line('Very high fracture risk confirmed', input['highRisk']),
+          _line(
+            'Very high fracture risk confirmed',
+            input['veryHighFractureRisk'] ?? input['highRisk'],
+          ),
         ],
         result: _result(
           trace,
@@ -264,7 +324,10 @@ ClinicalTracePresentation clinicalTracePresentation(
       return ClinicalTracePresentation(
         title: 'Standard treatment options',
         details: [
-          _line('Very high fracture risk confirmed', input['highRisk']),
+          _line(
+            'Very high fracture risk confirmed',
+            input['veryHighFractureRisk'] ?? input['highRisk'],
+          ),
         ],
         result: 'Standard treatment options branch applies.',
         technicalRuleId: trace.ruleId,

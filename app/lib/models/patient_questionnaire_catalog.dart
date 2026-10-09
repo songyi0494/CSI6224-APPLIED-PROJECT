@@ -4,13 +4,13 @@ const _uncertainYesNo = ['Yes', 'No', 'Not sure'];
 
 const patientQuestionnaireVisibleKeys = <String>{
   'postmenopausal',
-  'dietaryDairyServings',
+  'dairyLessThan3Serves',
   'smoking',
   'alcohol',
 };
 
 /// The complete governed production answer-key contract for the patient
-/// questionnaire. The five existing live keys remain unchanged; the remaining
+/// questionnaire. Dairy now uses one Boolean threshold; the remaining
 /// keys are the bounded mature-questionnaire extension stored in the existing
 /// `questionnaire_responses.answers` JSONB object.
 const productionQuestionnaireAnswerKeys = <String>{
@@ -34,7 +34,7 @@ const productionQuestionnaireAnswerKeys = <String>{
   'physicalActivityDescription',
   'smoking',
   'alcohol',
-  'dietaryDairyServings',
+  'dairyLessThan3Serves',
   'myocardialInfarctionHistory',
   'myocardialInfarctionTiming',
   'strokeHistory',
@@ -341,13 +341,16 @@ QuestionnaireForm buildMaturePatientForm(List<QuestionnaireQuestion> system) {
         53,
         section: 'Lifestyle',
       ),
-      systemQuestion(
-        'dietaryDairyServings',
-        'How many servings of dairy do you have per day?',
-        QuestionType.numeric,
-        const [],
-        54,
+      const QuestionnaireQuestion(
+        id: 'system-dairy-threshold',
+        fieldKey: 'dairyLessThan3Serves',
+        questionText:
+            'Do you usually have fewer than 3 serves of dairy foods per day?',
+        type: QuestionType.checkbox,
+        displayOrder: 54,
         section: 'Lifestyle',
+        helperText:
+            '1 serve is about 250 mL milk, 200 g yoghurt, or 40 g cheese.',
       ),
       ...maturePatientQuestions.skip(14),
     ],

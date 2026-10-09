@@ -9,6 +9,7 @@ function evaluateSingleTree(doc: DecisionTreeRule, facts: Record<string, unknown
     nextQuestion?: {
         nodeId: string;
         question: string;
+        helperText?: string;
         requiredFacts: string[];
     }
     error?: EvaluationError;
@@ -74,6 +75,7 @@ function evaluateSingleTree(doc: DecisionTreeRule, facts: Record<string, unknown
                 nextQuestion: {
                     nodeId: currentNodeId,
                     question: node.question,
+                    helperText: node.helperText,
                     requiredFacts: getRequiredFactsFromCondition(node.condition),
                 },
             };
@@ -161,6 +163,7 @@ export function evaluateDecisionTree(
                 pathwayId: currentPathway,
                 nodeId: result.nextQuestion.nodeId,
                 question: result.nextQuestion.question,
+                helperText: result.nextQuestion.helperText,
                 requiredFacts: result.nextQuestion.requiredFacts,
                 trace: fullTrace,
             };

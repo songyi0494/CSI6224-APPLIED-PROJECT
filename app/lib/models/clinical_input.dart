@@ -7,6 +7,7 @@ class ClinicalInput {
     this.minimalTraumaFracture,
     this.fractureSite,
     this.egfr,
+    this.adherenceConcern,
     this.frailty,
     this.lifeExpectancy,
     this.residentialCare,
@@ -18,6 +19,9 @@ class ClinicalInput {
     this.vitaminD,
     this.recentMajorFracture,
     this.highRisk,
+    this.tScoreAtOrBelowMinus2_5AnySite,
+    this.veryHighFractureRisk,
+    this.frailtyResidentialOrLimitedLifeExpectancy,
     this.miOrStroke,
     this.yearsSinceMenopause,
     this.robustWoman,
@@ -36,8 +40,13 @@ class ClinicalInput {
       robustWoman;
   final int? age, frailty;
   final String? sexAtBirth, fractureSite;
+  // tScore and highRisk are retained for reading historical records only.
+  // Current decision maps emit the two named Boolean confirmations instead.
   final double? lifeExpectancy, tScore, vitaminD, yearsSinceMenopause;
-  final bool? egfr;
+  final bool? egfr, adherenceConcern;
+  final bool? tScoreAtOrBelowMinus2_5AnySite,
+      veryHighFractureRisk,
+      frailtyResidentialOrLimitedLifeExpectancy;
 
   // retain the existing JSON rule vocabulary at this single boundary
   Map<String, Object?> toFacts() => {
@@ -48,22 +57,23 @@ class ClinicalInput {
     'minimalTraumaFracture': minimalTraumaFracture,
     'fractureSite': fractureSite,
     'eGFR': egfr,
-    'clinicalFrailtyScore': frailty,
-    'lifeExpectancy': lifeExpectancy,
-    'liveInResidentialCare': residentialCare,
-    'knownPoorMedicationAdherence': poorAdherence,
-    'cognitiveImpairment': cognitiveImpairment,
+    'tScoreAtOrBelowMinus2_5AnySite': tScoreAtOrBelowMinus2_5AnySite,
+    'veryHighFractureRisk': veryHighFractureRisk,
+    'frailtyResidentialOrLimitedLifeExpectancy':
+        frailtyResidentialOrLimitedLifeExpectancy,
+    'adherenceConcern': adherenceConcern,
     'testAvailable': dxaAvailable,
     'testWithinLast2Years': dxaRecent,
-    'T-score': tScore,
     'vitaminDLevel': vitaminD,
     'hipVertebralOrMultipleFracturesInLast24M': recentMajorFracture,
-    'highRisk': highRisk,
     'historyOfMiOrStroke': miOrStroke,
     'yearSincePostmenopausal': yearsSinceMenopause,
     'isRobustWoman': robustWoman,
   };
   factory ClinicalInput.fromFacts(Map<String, dynamic> f) => ClinicalInput(
+    adherenceConcern: f['adherenceConcern'] is bool
+        ? f['adherenceConcern'] as bool
+        : null,
     treated: f['osteoporosisTreatmentStatus'] as bool?,
     age: (f['age'] as num?)?.toInt(),
     sexAtBirth: f['sex'] as String?,
@@ -71,9 +81,25 @@ class ClinicalInput {
     minimalTraumaFracture: f['minimalTraumaFracture'] as bool?,
     fractureSite: f['fractureSite'] as String?,
     egfr: f['eGFR'] is bool ? f['eGFR'] as bool : null,
-    frailty: (f['clinicalFrailtyScore'] as num?)?.toInt(),
-    lifeExpectancy: (f['lifeExpectancy'] as num?)?.toDouble(),
-    residentialCare: f['liveInResidentialCare'] as bool?,
+    frailtyResidentialOrLimitedLifeExpectancy:
+        f['frailtyResidentialOrLimitedLifeExpectancy'] is bool
+        ? f['frailtyResidentialOrLimitedLifeExpectancy'] as bool
+        : null,
+    tScoreAtOrBelowMinus2_5AnySite: f['tScoreAtOrBelowMinus2_5AnySite'] is bool
+        ? f['tScoreAtOrBelowMinus2_5AnySite'] as bool
+        : null,
+    veryHighFractureRisk: f['veryHighFractureRisk'] is bool
+        ? f['veryHighFractureRisk'] as bool
+        : null,
+    frailty: f['clinicalFrailtyScore'] is num
+        ? (f['clinicalFrailtyScore'] as num).toInt()
+        : null,
+    lifeExpectancy: f['lifeExpectancy'] is num
+        ? (f['lifeExpectancy'] as num).toDouble()
+        : null,
+    residentialCare: f['liveInResidentialCare'] is bool
+        ? f['liveInResidentialCare'] as bool
+        : null,
     poorAdherence: f['knownPoorMedicationAdherence'] as bool?,
     cognitiveImpairment: f['cognitiveImpairment'] as bool?,
     dxaAvailable: f['testAvailable'] as bool?,

@@ -73,12 +73,16 @@ void main() {
 
   test('typed registry covers audited numeric and boolean facts', () {
     expect(pathwayFactRegistry['eGFR']!.kind, PathwayFactKind.boolean);
-    expect(pathwayFactRegistry['hipTscore']!.allowNegative, isTrue);
+    expect(
+      pathwayFactRegistry['tScoreAtOrBelowMinus2_5AnySite']!.kind,
+      PathwayFactKind.boolean,
+    );
+    expect(pathwayFactRegistry.containsKey('hipTscore'), isFalse);
     expect(
       pathwayFactRegistry['priorMIorStroke']!.kind,
       PathwayFactKind.boolean,
     );
-    expect(pathwayFactRegistry, hasLength(27));
+    expect(pathwayFactRegistry, hasLength(18));
   });
 
   test('mock follows P1 and returns a multi-fact node', () async {
@@ -101,11 +105,7 @@ void main() {
         await setup.repository.evaluatePathway(caseId: setup.caseId)
             as PathwayQuestionStep;
     expect(result.nodeId, 'RESIDENTIAL_OR_FRAILTY');
-    expect(result.requiredFacts, [
-      'liveInResidentialCare',
-      'clinicalFrailtyScore',
-      'lifeExpectancy',
-    ]);
+    expect(result.requiredFacts, ['frailtyResidentialOrLimitedLifeExpectancy']);
   });
 
   test('P1 redirects to P2 without manual routing', () async {

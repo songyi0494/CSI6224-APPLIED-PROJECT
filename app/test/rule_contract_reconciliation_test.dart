@@ -24,23 +24,53 @@ Future<void> choose(WidgetTester tester, String option) async {
 }
 
 void main() {
-  test('compatibility input models share Boolean eGFR and do not derive old numeric answers', () {
-    expect(ClinicalInput.fromFacts({'eGFR': true}).egfr, true);
-    expect(Pathway1ClinicianInput.fromJson({'eGFR': false}).egfr, false);
-    expect(ClinicalInput.fromFacts({'eGFR': 60}).egfr, isNull);
-    expect(Pathway1ClinicianInput.fromJson({'eGFR': 60}).egfr, isNull);
-    expect(const ClinicalInput(egfr: true).toFacts()['eGFR'], true);
-    expect(const Pathway1ClinicianInput(egfr: false).toEvaluatorFacts()['eGFR'], false);
-  });
+  test(
+    'compatibility input models share Boolean eGFR and do not derive old numeric answers',
+    () {
+      expect(ClinicalInput.fromFacts({'eGFR': true}).egfr, true);
+      expect(Pathway1ClinicianInput.fromJson({'eGFR': false}).egfr, false);
+      expect(ClinicalInput.fromFacts({'eGFR': 60}).egfr, isNull);
+      expect(Pathway1ClinicianInput.fromJson({'eGFR': 60}).egfr, isNull);
+      expect(const ClinicalInput(egfr: true).toFacts()['eGFR'], true);
+      expect(
+        const Pathway1ClinicianInput(egfr: false).toEvaluatorFacts()['eGFR'],
+        false,
+      );
+    },
+  );
   test('saved contract version controls threshold trace meaning', () {
     final evaluation = PathwayEvaluation.fromJson({
-      'status': 'complete', 'pathwayId': 'PATHWAY1', 'contractVersion': 'songyi-p1p2-20261008',
-      'actions': [], 'trace': [{'nodeId': 'RENAL_DYSFUNCTION', 'nodeType': 'decision', 'pathwayId': 'PATHWAY1', 'matched': true}],
+      'status': 'complete',
+      'pathwayId': 'PATHWAY1',
+      'contractVersion': 'songyi-p1p2-20261008',
+      'actions': [],
+      'trace': [
+        {
+          'nodeId': 'RENAL_DYSFUNCTION',
+          'nodeType': 'decision',
+          'pathwayId': 'PATHWAY1',
+          'matched': true,
+        },
+      ],
     });
-    expect(clinicalTracePresentation(evaluation.trace.single).details.single, contains('≥30 mL/min = Yes'));
-    final oldDuration = ReasoningTraceEntry.fromJson({'nodeId': 'ANTIRESORPTIVE_TREATMENT_DURATION', 'nodeType': 'decision', 'pathwayId': 'PATHWAY2', 'matched': true});
-    expect(clinicalTracePresentation(oldDuration).title, 'Historical treatment duration decision');
-    expect(clinicalTracePresentation(oldDuration).details.single, contains('Historical duration answer'));
+    expect(
+      clinicalTracePresentation(evaluation.trace.single).details.single,
+      contains('≥30 mL/min = Yes'),
+    );
+    final oldDuration = ReasoningTraceEntry.fromJson({
+      'nodeId': 'ANTIRESORPTIVE_TREATMENT_DURATION',
+      'nodeType': 'decision',
+      'pathwayId': 'PATHWAY2',
+      'matched': true,
+    });
+    expect(
+      clinicalTracePresentation(oldDuration).title,
+      'Historical treatment duration decision',
+    );
+    expect(
+      clinicalTracePresentation(oldDuration).details.single,
+      contains('Historical duration answer'),
+    );
   });
   test(
     'active repository rejects numeric eGFR and retired duration key',
@@ -206,8 +236,13 @@ void main() {
       await tester.tap(site);
       await tester.pumpAndSettle();
       for (final label in ['Hand', 'Foot', 'Face', 'Ankle']) {
-        expect(find.text(label), findsOneWidget);
+        expect(find.text(label), findsNothing);
       }
+      expect(
+        find.text('Excluded site — hand, foot, face, or ankle'),
+        findsOneWidget,
+      );
+      expect(find.text('Wrist / forearm'), findsOneWidget);
       expect(find.text('Leg, ankle or foot'), findsNothing);
       await tester.tap(find.text('Hip').last);
       await tester.pumpAndSettle();
@@ -215,7 +250,7 @@ void main() {
       await tester.ensureVisible(next);
       await tester.tap(next);
       await tester.pumpAndSettle();
-      expect(find.text('eGFR ≥30 mL/min?'), findsOneWidget);
+      expect(find.text('Select an answer'), findsOneWidget);
       expect(find.byType(DropdownButtonFormField<bool>), findsOneWidget);
       expect(find.byType(TextFormField), findsNothing);
     },

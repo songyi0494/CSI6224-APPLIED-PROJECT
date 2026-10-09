@@ -8,22 +8,13 @@
         "minimalTraumaFracture",
         "fractureSite",
         "eGFR",
+        "adherenceConcern",
         "osteoporosisTreatmentStatus",
-        "liveInResidentialCare",
-        "clinicalFrailtyScore",
-        "lifeExpectancy",
-        "knownPoorMedicationAdherence",
-        "cognitiveImpairment",
         "testAvailability",
-        "femoralNeckTscore",
-        "hipTscore",
-        "lumbarSpineTscore",
         "hipVertebralOrMultipleFracturesInLast24M",
-        "recentFractureWithin2Y",
-        "historyOf2orMoreFractures",
-        "clinicalRiskFactors",
-        "FRAX10YmajorOsteoporoticFractureRiskPercent",
-        "FRAX10YmajorHipFractureRiskPercent"
+        "tScoreAtOrBelowMinus2_5AnySite",
+        "veryHighFractureRisk",
+        "frailtyResidentialOrLimitedLifeExpectancy"
     ],
     "root": "P1_DEMOGRAPHIC_ELIGIBILITY",
     "nodes": {
@@ -126,48 +117,27 @@
         },
         "RESIDENTIAL_OR_FRAILTY": {
             "type": "decision",
-            "question": "Living situation, Frailty and Life expectancy (Please answer the following questions.)",
+            "question": "Does the patient have any of these factors?",
             "condition": {
-                "any": [
-                    {
-                        "fact": "liveInResidentialCare",
-                        "operator": "equals",
-                        "value": true
-                    },
-                    {
-                        "fact": "clinicalFrailtyScore",
-                        "operator": "equals",
-                        "value": true
-                    },
-                    {
-                        "fact": "lifeExpectancy",
-                        "operator": "equals",
-                        "value": true
-                    }
-                ]
+                "fact": "frailtyResidentialOrLimitedLifeExpectancy",
+                "operator": "equals",
+                "value": true
             },
             "yes": "LEAF_DENOSUMAB_GP",
-            "no": "ADHERENCE_CONCERN"
+            "no": "ADHERENCE_CONCERN",
+            "helperText": "Lives in residential care, Clinical Frailty Scale score 6 or higher, or life expectancy less than 7 years."
         },
         "ADHERENCE_CONCERN": {
             "type": "decision",
-            "question": "Is the patient able to adhere to their treatment plan? (Please answer the following questions.)",
+            "question": "Is there concern about the patient's ability to follow the treatment plan?",
             "condition": {
-                "any": [
-                    {
-                        "fact": "knownPoorMedicationAdherence",
-                        "operator": "equals",
-                        "value": true
-                    },
-                    {
-                        "fact": "cognitiveImpairment",
-                        "operator": "equals",
-                        "value": true
-                    }
-                ]
+                "fact": "adherenceConcern",
+                "operator": "equals",
+                "value": true
             },
             "yes": "LEAF_ZOLEDRONIC_OR_RISEDRONATE_GP",
-            "no": "DXA_SCAN_AVAILABILITY"
+            "no": "DXA_SCAN_AVAILABILITY",
+            "helperText": "Examples include difficulty taking medicines as prescribed or cognitive impairment."
         },
         "DXA_SCAN_AVAILABILITY": {
             "type": "decision",
@@ -182,28 +152,15 @@
         },
         "T_SCORE_CHECK": {
             "type": "decision",
-            "question": "Is the patient's T-score for the femoral neck, hip, and lumbar spine -2.5 or lower?",
+            "question": "Is the T-score -2.5 or lower at any of these sites?",
             "condition": {
-                "any": [
-                    {
-                        "fact": "femoralNeckTscore",
-                        "operator": "equals",
-                        "value": true
-                    },
-                    {
-                        "fact": "hipTscore",
-                        "operator": "equals",
-                        "value": true
-                    },
-                    {
-                        "fact": "lumbarSpineTscore",
-                        "operator": "equals",
-                        "value": true
-                    }
-                ]
+                "fact": "tScoreAtOrBelowMinus2_5AnySite",
+                "operator": "equals",
+                "value": true
             },
             "yes": "RECENT_MAJOR_FRACTURES",
-            "no": "LEAF_ZOLEDRONIC_OR_RISEDRONATE_OR_DENOSUMAB_GP"
+            "no": "LEAF_ZOLEDRONIC_OR_RISEDRONATE_OR_DENOSUMAB_GP",
+            "helperText": "Femoral neck, hip, or lumbar spine."
         },
         "RECENT_MAJOR_FRACTURES": {
             "type": "decision",
@@ -218,61 +175,15 @@
         },
         "HIGH_RISK_CHECK": {
             "type": "decision",
-            "question": "Is the patient at very high risk? (Please answer the following questions.)",
+            "question": "Does the patient meet the very-high-fracture-risk criteria?",
             "condition": {
-                "all": [
-                    {
-                        "any": [
-                            {
-                                "fact": "femoralNeckTscore",
-                                "operator": "equals",
-                                "value": true
-                            },
-                            {
-                                "fact": "hipTscore",
-                                "operator": "equals",
-                                "value": true
-                            },
-                            {
-                                "fact": "lumbarSpineTscore",
-                                "operator": "equals",
-                                "value": true
-                            }
-                        ]
-                    },
-                    {
-                        "any": [
-                            {
-                                "fact": "recentFractureWithin2Y",
-                                "operator": "equals",
-                                "value": true
-                            },
-                            {
-                                "fact": "historyOf2orMoreFractures",
-                                "operator": "equals",
-                                "value": true
-                            },
-                            {
-                                "fact": "clinicalRiskFactors",
-                                "operator": "equals",
-                                "value": true
-                            },
-                            {
-                                "fact": "FRAX10YmajorOsteoporoticFractureRiskPercent",
-                                "operator": "equals",
-                                "value": true
-                            },
-                            {
-                                "fact": "FRAX10YmajorHipFractureRiskPercent",
-                                "operator": "equals",
-                                "value": true
-                            }
-                        ]
-                    }
-                ]
+                "fact": "veryHighFractureRisk",
+                "operator": "equals",
+                "value": true
             },
             "yes": "LEAF_PRIVATELY_FUNDED_OSTEOANABOLIC_REFERRAL",
-            "no": "LEAF_ZOLEDRONIC_OR_RISEDRONATE_OR_DENOSUMAB_GP"
+            "no": "LEAF_ZOLEDRONIC_OR_RISEDRONATE_OR_DENOSUMAB_GP",
+            "helperText": "T-score ≤ -3.0, plus at least one of: recent fracture within 2 years, two or more fractures, relevant clinical risk factors, FRAX major risk ≥30%, or FRAX hip risk ≥4.5%."
         },
         "LEAF_RENAL_REFERRAL": {
             "type": "leaf",

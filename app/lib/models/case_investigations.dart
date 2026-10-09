@@ -8,6 +8,8 @@ class CaseInvestigations {
     required this.isComplete,
     this.completedAt,
     this.updatedAt,
+    this.authoritativeHypocalcaemia,
+    this.hypocalcaemiaRevision = 0,
   });
 
   static const vitaminDUnit = 'nmol/L';
@@ -18,6 +20,8 @@ class CaseInvestigations {
   final double? vitaminDLevel;
   final double? ionisedCalcium;
   final double? bodyWeightKg;
+  final bool? authoritativeHypocalcaemia;
+  final int hypocalcaemiaRevision;
   final int revision;
   final bool isComplete;
   final DateTime? completedAt;
@@ -68,18 +72,19 @@ class CaseInvestigations {
 
     // The server remains authoritative for completion. Flutter only fails
     // closed when a response contradicts the revision/value contract.
-    final contractComplete =
-        serverComplete &&
-        revision > 0 &&
-        vitaminD != null &&
-        ionisedCalcium != null &&
-        bodyWeight != null;
+    final contractComplete = serverComplete && revision > 0;
 
     return CaseInvestigations(
       caseId: caseId,
       vitaminDLevel: vitaminD,
       ionisedCalcium: ionisedCalcium,
       bodyWeightKg: bodyWeight,
+      authoritativeHypocalcaemia:
+          json['authoritativeHypocalcaemia'] is bool &&
+              (_integer(json['hypocalcaemiaRevision']) ?? 0) > 0
+          ? json['authoritativeHypocalcaemia'] as bool
+          : null,
+      hypocalcaemiaRevision: _integer(json['hypocalcaemiaRevision']) ?? 0,
       revision: revision,
       isComplete: contractComplete,
       completedAt: _date(json['completedAt']),

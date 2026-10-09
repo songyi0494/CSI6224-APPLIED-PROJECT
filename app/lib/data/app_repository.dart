@@ -44,9 +44,15 @@ abstract class AppRepository {
   Future<CaseInvestigations> getCaseInvestigations(String caseId);
   Future<CaseInvestigations> saveCaseInvestigations({
     required String caseId,
-    required double vitaminDLevel,
-    required double ionisedCalcium,
-    required double bodyWeightKg,
+    required double? vitaminDLevel,
+    required double? ionisedCalcium,
+    required double? bodyWeightKg,
+    required int expectedRevision,
+    bool? authoritativeHypocalcaemia,
+  });
+  Future<CaseInvestigations> confirmCaseHypocalcaemia({
+    required String caseId,
+    required bool value,
     required int expectedRevision,
   });
   Future<ClinicalCase> saveAssessment({

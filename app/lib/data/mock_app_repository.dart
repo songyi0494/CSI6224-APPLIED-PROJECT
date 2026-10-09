@@ -166,15 +166,13 @@ class MockAppRepository implements AppRepository {
 
   static const _clinicianOwnedMissingInputs = {
     'eGFR',
-    'clinicalFrailtyScore',
-    'lifeExpectancy',
-    'knownPoorMedicationAdherence',
-    'cognitiveImpairment',
+    'frailtyResidentialOrLimitedLifeExpectancy',
+    'adherenceConcern',
     'testAvailable',
     'testWithinLast2Years',
-    'T-score',
+    'tScoreAtOrBelowMinus2_5AnySite',
     'hipVertebralOrMultipleFracturesInLast24M',
-    'highRisk',
+    'veryHighFractureRisk',
     'yearSincePostmenopausal',
     'isRobustWoman',
   };
@@ -315,23 +313,26 @@ class MockAppRepository implements AppRepository {
   @override
   Future<CaseInvestigations> saveCaseInvestigations({
     required String caseId,
-    required double vitaminDLevel,
-    required double ionisedCalcium,
-    required double bodyWeightKg,
+    required double? vitaminDLevel,
+    required double? ionisedCalcium,
+    required double? bodyWeightKg,
     required int expectedRevision,
+    bool? authoritativeHypocalcaemia,
   }) async {
     _requireAssignedCase(caseId, inProgress: true);
-    if (!vitaminDLevel.isFinite || vitaminDLevel < 0) {
+    if (vitaminDLevel != null &&
+        (!vitaminDLevel.isFinite || vitaminDLevel < 0)) {
       throw const AppException(
         'Vitamin D must be a finite non-negative value in nmol/L.',
       );
     }
-    if (!ionisedCalcium.isFinite || ionisedCalcium < 0) {
+    if (ionisedCalcium != null &&
+        (!ionisedCalcium.isFinite || ionisedCalcium < 0)) {
       throw const AppException(
         'Ionised calcium must be a finite non-negative value in mmol/L.',
       );
     }
-    if (!bodyWeightKg.isFinite || bodyWeightKg <= 0) {
+    if (bodyWeightKg != null && (!bodyWeightKg.isFinite || bodyWeightKg <= 0)) {
       throw const AppException(
         'Body weight must be a finite positive value in kg.',
       );
@@ -346,12 +347,61 @@ class MockAppRepository implements AppRepository {
       vitaminDLevel: vitaminDLevel,
       ionisedCalcium: ionisedCalcium,
       bodyWeightKg: bodyWeightKg,
+      authoritativeHypocalcaemia:
+          authoritativeHypocalcaemia ?? current.authoritativeHypocalcaemia,
+      hypocalcaemiaRevision:
+          current.hypocalcaemiaRevision +
+          (authoritativeHypocalcaemia != null &&
+                  (authoritativeHypocalcaemia !=
+                          current.authoritativeHypocalcaemia ||
+                      current.hypocalcaemiaRevision == 0)
+              ? 1
+              : 0),
       revision: current.revision + 1,
       isComplete: true,
       completedAt: now,
       updatedAt: now,
     );
     _investigations[caseId] = saved;
+    _resultsReviews.remove(caseId);
+    return saved;
+  }
+
+  @override
+  Future<CaseInvestigations> confirmCaseHypocalcaemia({
+    required String caseId,
+    required bool value,
+    required int expectedRevision,
+  }) async {
+    _requireAssignedCase(caseId, inProgress: false);
+    if (_cases[caseId]!['status'] == 'approved')
+      throw const AppException(
+        'An approved patient result cannot be changed through this confirmation.',
+      );
+    final current = _investigations[caseId];
+    if (current == null || !current.canStartPathway)
+      throw const AppException(
+        'Review and save the baseline investigations first.',
+      );
+    if (current.hypocalcaemiaRevision != expectedRevision)
+      throw const InvestigationConflictException();
+    if (current.authoritativeHypocalcaemia == value &&
+        current.hypocalcaemiaRevision > 0)
+      return current;
+    final saved = CaseInvestigations(
+      caseId: caseId,
+      vitaminDLevel: current.vitaminDLevel,
+      ionisedCalcium: current.ionisedCalcium,
+      bodyWeightKg: current.bodyWeightKg,
+      revision: current.revision,
+      isComplete: current.isComplete,
+      completedAt: current.completedAt,
+      updatedAt: DateTime.now().toUtc(),
+      authoritativeHypocalcaemia: value,
+      hypocalcaemiaRevision: current.hypocalcaemiaRevision + 1,
+    );
+    _investigations[caseId] = saved;
+    _resultsReviews.remove(caseId);
     return saved;
   }
 
@@ -545,7 +595,15 @@ class MockAppRepository implements AppRepository {
     }
     final a = _cases[assessment.id]!;
     final patientFacts = Map<String, Object?>.from(a['facts'] as Map);
-    final clinicianFacts = input.toJson();
+    final clinicianFacts = {
+      for (final entry in current.clinicianFacts.entries)
+        if ([
+          'knownPoorMedicationAdherence',
+          'cognitiveImpairment',
+        ].contains(entry.key))
+          entry.key: entry.value,
+      ...input.toJson(),
+    };
     final evaluationFacts = {...patientFacts, ...input.toEvaluatorFacts()};
     final evaluation = await _evaluate(
       ClinicalInput.fromFacts(evaluationFacts),
@@ -583,7 +641,7 @@ class MockAppRepository implements AppRepository {
     final investigations = _investigations[caseId];
     if (investigations == null || !investigations.canStartPathway) {
       throw const AppException(
-        'Complete and confirm Investigations before starting the pathway.',
+        'Review investigations before starting the pathway. Unavailable results may be left blank.',
       );
     }
     row['clinician_facts'] = Map<String, Object?>.from(
@@ -611,7 +669,7 @@ class MockAppRepository implements AppRepository {
     final investigations = _investigations[caseId];
     if (investigations == null || !investigations.canStartPathway) {
       throw const AppException(
-        'Complete and confirm Investigations before starting the pathway.',
+        'Review investigations before starting the pathway. Unavailable results may be left blank.',
       );
     }
     final result = _mockLiveEvaluate(
@@ -650,6 +708,9 @@ class MockAppRepository implements AppRepository {
       nodeId: node,
       question: prompt,
       requiredFacts: facts,
+      helperText: facts.length == 1
+          ? pathwayFactRegistry[facts.single]?.helperText
+          : null,
       trace: List.unmodifiable(trace),
     );
     void visit(String pathway, String node, bool matched, String next) =>
@@ -679,9 +740,6 @@ class MockAppRepository implements AppRepository {
         trace: List.unmodifiable(trace),
       );
     }
-
-    bool anyMissing(List<String> keys) =>
-        keys.any((key) => !facts.containsKey(key));
 
     final sex = patient?.sexAtBirth;
     final age = _ageFromDateOfBirth(patient?.dateOfBirth);
@@ -746,8 +804,9 @@ class MockAppRepository implements AppRepository {
         return PathwayRuntimeError(
           pathwayId: 'PATHWAY1',
           trace: trace,
-          message:
-              'The patient does not meet the P1 entry criteria. Clinician review is required before choosing another pathway.',
+          message: key == 'fractureSite'
+              ? 'Hand, foot, face, and ankle fractures are not eligible for the general minimal-trauma-fracture pathway.'
+              : 'The patient does not meet the P1 entry criteria. Clinician review is required before choosing another pathway.',
         );
       }
       visit(
@@ -799,47 +858,48 @@ class MockAppRepository implements AppRepository {
     );
     if (treated) return _mockPathway2(facts, trace);
 
-    const residential = [
-      'liveInResidentialCare',
-      'clinicalFrailtyScore',
-      'lifeExpectancy',
-    ];
-    if (anyMissing(residential)) {
+    const careKey = 'frailtyResidentialOrLimitedLifeExpectancy';
+    if (facts[careKey] is! bool) {
       return ask(
         'PATHWAY1',
         'RESIDENTIAL_OR_FRAILTY',
-        'Does the patient live in residential care, have severe frality, or have a life expectancy of 7 years or less?',
-        residential,
+        pathwayFactRegistry[careKey]!.label,
+        const [careKey],
       );
     }
-    final vulnerable =
-        facts['liveInResidentialCare'] == true ||
-        (facts['clinicalFrailtyScore'] as num) >= 7 ||
-        (facts['lifeExpectancy'] as num) < 7;
+    final vulnerable = facts[careKey] as bool;
     visit(
       'PATHWAY1',
       'RESIDENTIAL_OR_FRAILTY',
       vulnerable,
-      vulnerable ? 'RESULT_INDIVIDUAL_REVIEW' : 'ADHERENCE_CONCERN',
+      vulnerable ? 'LEAF_DENOSUMAB_GP' : 'ADHERENCE_CONCERN',
     );
     if (vulnerable) {
-      return finish(
-        'PATHWAY1',
-        'Use individualised clinical review and shared decision-making.',
+      return CompletedPathwayEvaluation(
+        pathwayId: 'PATHWAY1',
+        trace: List.unmodifiable(trace),
+        actions: const [
+          {
+            'type': 'medication',
+            'medication': 'Denosumab',
+            'dose': '60mg',
+            'route': 'subcut',
+            'frequency': '6 monthly',
+          },
+          {'type': 'followUp', 'destination': 'GP'},
+        ],
       );
     }
-    const adherence = ['knownPoorMedicationAdherence', 'cognitiveImpairment'];
-    if (anyMissing(adherence)) {
+    const adherence = ['adherenceConcern'];
+    if (facts['adherenceConcern'] is! bool) {
       return ask(
         'PATHWAY1',
         'ADHERENCE_CONCERN',
-        'Is the patient able to adhere to their treatment plan? (Please answer the following questions.)',
+        "Is there concern about the patient's ability to follow the treatment plan?",
         adherence,
       );
     }
-    final concern =
-        facts['knownPoorMedicationAdherence'] == true ||
-        facts['cognitiveImpairment'] == true;
+    final concern = facts['adherenceConcern'] as bool;
     visit(
       'PATHWAY1',
       'ADHERENCE_CONCERN',
@@ -873,26 +933,28 @@ class MockAppRepository implements AppRepository {
         'Use clinical risk assessment when DXA is not available.',
       );
     }
-    const tScores = ['femoralNeckTscore', 'hipTscore', 'lumbarSpineTscore'];
-    if (anyMissing(tScores)) {
+    const tScoreKey = 'tScoreAtOrBelowMinus2_5AnySite';
+    if (facts[tScoreKey] is! bool) {
       return ask(
         'PATHWAY1',
         'T_SCORE_CHECK',
-        "What are the patient's T-score for the femoral neck, hip, and lumbar spine?",
-        tScores,
+        pathwayFactRegistry[tScoreKey]!.label,
+        const [tScoreKey],
       );
     }
-    final low = tScores.any((key) => (facts[key] as num) <= -2.5);
+    final low = facts[tScoreKey] as bool;
     visit(
       'PATHWAY1',
       'T_SCORE_CHECK',
       low,
-      low ? 'RECENT_MAJOR_FRACTURES' : 'RESULT_MONITOR',
+      low
+          ? 'RECENT_MAJOR_FRACTURES'
+          : 'LEAF_ZOLEDRONIC_OR_RISEDRONATE_OR_DENOSUMAB_GP',
     );
     if (!low) {
       return finish(
         'PATHWAY1',
-        'Continue risk-factor management and monitoring.',
+        'Review osteoporosis treatment options with the patient.',
       );
     }
     if (!facts.containsKey('hipVertebralOrMultipleFracturesInLast24M')) {
@@ -916,27 +978,29 @@ class MockAppRepository implements AppRepository {
         'Refer for very-high-risk osteoporosis treatment review.',
       );
     }
-    const highRisk = [
-      'femoralNeckTscore',
-      'hipTscore',
-      'lumbarSpineTscore',
-      'recentFractureWithin2Y',
-      'historyOf2orMoreFractures',
-      'clinicalRiskFactors',
-      'FRAX10YmajorOsteoporoticFractureRiskPercent',
-      'FRAX10YmajorHipFractureRiskPercent',
-    ];
-    if (anyMissing(highRisk)) {
+    const riskKey = 'veryHighFractureRisk';
+    if (facts[riskKey] is! bool) {
       return ask(
         'PATHWAY1',
         'HIGH_RISK_CHECK',
-        'Is the patient at very high risk? (Please answer the following questions.)',
-        highRisk,
+        pathwayFactRegistry[riskKey]!.label,
+        const [riskKey],
       );
     }
+    final veryHigh = facts[riskKey] as bool;
+    visit(
+      'PATHWAY1',
+      'HIGH_RISK_CHECK',
+      veryHigh,
+      veryHigh
+          ? 'LEAF_PRIVATELY_FUNDED_OSTEOANABOLIC_REFERRAL'
+          : 'LEAF_ZOLEDRONIC_OR_RISEDRONATE_OR_DENOSUMAB_GP',
+    );
     return finish(
       'PATHWAY1',
-      'Review osteoporosis treatment options with the patient.',
+      veryHigh
+          ? 'Refer for privately funded osteoanabolic therapy.'
+          : 'Review osteoporosis treatment options with the patient.',
     );
   }
 
@@ -1040,7 +1104,7 @@ class MockAppRepository implements AppRepository {
 
   Map<String, dynamic> _liveResultJson(CompletedPathwayEvaluation result) => {
     'status': 'complete',
-    'contractVersion': 'songyi-p1p2-20261008',
+    'contractVersion': 'songyi-p1p2-20261009-adherence',
     'pathwayId': result.pathwayId,
     'actions': result.actions,
     'trace': result.trace
@@ -1091,6 +1155,20 @@ class MockAppRepository implements AppRepository {
     if (decision == ClinicalCaseStatus.approved &&
         current.evaluation?.canApprove != true)
       throw const AppException('This assessment needs further review.');
+    if (decision == ClinicalCaseStatus.approved &&
+        current.evaluation?.ruleVersion == 'songyi-p1p2-20261009-adherence') {
+      final investigation = _investigations[assessment.id];
+      if (effectiveReview.adviceContractVersion != 'songyi-advice-20261009' ||
+          effectiveReview.investigationRevision != investigation?.revision ||
+          effectiveReview.hypocalcaemiaRevision !=
+              investigation?.hypocalcaemiaRevision ||
+          effectiveReview.questionnaireRevision !=
+              _questionnaireResponses[current.patientId]?.revision) {
+        throw const AppException(
+          'Generate current patient advice before approval.',
+        );
+      }
+    }
     final a = _cases[assessment.id]!;
     a.addAll({
       'status': decision.value,
@@ -1141,16 +1219,48 @@ class MockAppRepository implements AppRepository {
         'The questionnaire changed. Reload before generating Common Advice.',
       );
     }
+    // Mock simulation only; live advice is generated by the protected SQL RPC.
+    final answers = response.answers;
+    final vitaminD = investigation.vitaminDLevel;
+    final dairy = answers['dairyLessThan3Serves'];
+    if (dairy is! bool)
+      throw const AppException(
+        'The current patient-reported dairy threshold answer is required.',
+      );
+    final hypocalcaemia = investigation.authoritativeHypocalcaemia;
+    if (hypocalcaemia == null || investigation.hypocalcaemiaRevision == 0)
+      throw const AppException(
+        'Confirm hypocalcaemia before generating current patient advice.',
+      );
     final review = ClinicalResultsReview.fromJson({
-      'vitaminD': {'recommendation': 'Clinician-reviewed Vitamin D advice.'},
-      'calcium': {'recommendation': 'Clinician-reviewed calcium advice.'},
+      'vitaminD': {
+        'recommendation': vitaminD == null
+            ? null
+            : vitaminD < 40
+            ? 'Take cholecalciferol 75 micrograms once daily for 6 weeks. Then take 25 micrograms once daily.'
+            : vitaminD <= 75
+            ? 'Take cholecalciferol 25 micrograms once daily. Continue treatment.'
+            : null,
+        'recheckBeforeTreatment': vitaminD != null && vitaminD < 25,
+      },
+      'calcium': {
+        'authoritativeHypocalcaemia': hypocalcaemia,
+        'dairyLessThan3Serves': dairy,
+        'recommendation': dairy || hypocalcaemia
+            ? 'Take calcium 600 mg once daily.'
+            : null,
+      },
       'protein': {'recommendation': null},
-      'lifestyleAdvice': const [
-        'Ceasing smoking',
-        'Reducing alcohol intake',
-        'Weight bearing exercises',
+      'lifestyleAdvice': [
+        if (answers['smoking'] == 'Yes' || answers['smoking'] == true)
+          'Stop smoking.',
+        if (answers['alcohol'] == 'Yes' || answers['alcohol'] == true)
+          'Reduce alcohol intake.',
+        'Do regular weight-bearing exercise.',
       ],
       'source': {
+        'adviceContractVersion': 'songyi-advice-20261009',
+        'hypocalcaemiaRevision': investigation.hypocalcaemiaRevision,
         'investigationRevision': investigation.revision,
         'questionnaireRevision': response.revision,
         'generatedAt': DateTime.now().toUtc().toIso8601String(),
@@ -1291,6 +1401,11 @@ class MockAppRepository implements AppRepository {
         'This questionnaire contains an answer that is not approved for production submission.',
       );
     }
+    if (authoritativeAnswers['dairyLessThan3Serves'] is! bool) {
+      throw const AppException(
+        'Answer the dairy threshold question with Yes or No.',
+      );
+    }
     final existing = _questionnaireResponses[_user.id];
     final response = QuestionnaireResponse(
       id: newId(),
@@ -1298,7 +1413,10 @@ class MockAppRepository implements AppRepository {
       status: QuestionnaireResponseStatus.submitted,
       revision: (existing?.revision ?? 0) + 1,
       submittedAt: DateTime.now().toUtc(),
-      answers: Map.unmodifiable(authoritativeAnswers),
+      answers: Map.unmodifiable({
+        ...?existing?.answers,
+        ...authoritativeAnswers,
+      }),
     );
     _questionnaireResponses[_user.id] = response;
     return response;
@@ -1565,28 +1683,20 @@ class MockAppRepository implements AppRepository {
     );
 
     evaluationInput = {
-      'liveInResidentialCare': facts['liveInResidentialCare'],
-      'clinicalFrailtyScore': facts['clinicalFrailtyScore'],
-      'lifeExpectancy': facts['lifeExpectancy'],
+      'frailtyResidentialOrLimitedLifeExpectancy':
+          facts['frailtyResidentialOrLimitedLifeExpectancy'],
     };
-    final residentialCare = requireBool('liveInResidentialCare');
-    final frailty = requireNum('clinicalFrailtyScore');
-    final lifeExpectancy = requireNum('lifeExpectancy');
-    final careMissing = <String>[
-      if (residentialCare == null) 'liveInResidentialCare',
-      if (frailty == null) 'clinicalFrailtyScore',
-      if (lifeExpectancy == null) 'lifeExpectancy',
-    ];
-    if (careMissing.isNotEmpty) {
+    final careMatched = requireBool(
+      'frailtyResidentialOrLimitedLifeExpectancy',
+    );
+    if (careMatched == null) {
       return missingRule(
         'RESIDENTIAL_CARE_OR_SEVERE_FRAILTY_OR_SHORT_LIFE_EXPECTANCY',
-        'Care setting, frailty and life expectancy',
+        'Residential care, severe frailty, or limited life expectancy',
         evaluationInput,
-        careMissing,
+        ['frailtyResidentialOrLimitedLifeExpectancy'],
       )!;
     }
-    final careMatched =
-        residentialCare == true || frailty! >= 6 || lifeExpectancy! < 7;
     addTrace(
       'RESIDENTIAL_CARE_OR_SEVERE_FRAILTY_OR_SHORT_LIFE_EXPECTANCY',
       careMatched,
@@ -1610,30 +1720,24 @@ class MockAppRepository implements AppRepository {
       );
     }
 
-    evaluationInput = {
-      'knownPoorMedicationAdherence': facts['knownPoorMedicationAdherence'],
-      'cognitiveImpairment': facts['cognitiveImpairment'],
-    };
-    final poorAdherence = requireBool('knownPoorMedicationAdherence');
-    final cognitiveImpairment = requireBool('cognitiveImpairment');
+    evaluationInput = {'adherenceConcern': facts['adherenceConcern']};
+    final adherenceConcern = requireBool('adherenceConcern');
     final adherenceMissing = <String>[
-      if (poorAdherence == null) 'knownPoorMedicationAdherence',
-      if (cognitiveImpairment == null) 'cognitiveImpairment',
+      if (adherenceConcern == null) 'adherenceConcern',
     ];
     if (adherenceMissing.isNotEmpty) {
       return missingRule(
         'ADHERENCE_CONCERN',
-        'Medication adherence or cognitive impairment',
+        'Treatment-adherence concern',
         evaluationInput,
         adherenceMissing,
       )!;
     }
-    final adherenceMatched =
-        poorAdherence == true || cognitiveImpairment == true;
+    final adherenceMatched = adherenceConcern == true;
     addTrace(
       'ADHERENCE_CONCERN',
       adherenceMatched,
-      'Medication adherence or cognitive impairment: ${adherenceMatched ? 'met' : 'not met'}.',
+      'Treatment-adherence concern: ${adherenceMatched ? 'met' : 'not met'}.',
       evaluationInput,
     );
     if (adherenceMatched) {
@@ -1735,14 +1839,16 @@ class MockAppRepository implements AppRepository {
       );
     }
 
-    evaluationInput = {'T-score': facts['T-score']};
-    final tScore = requireNum('T-score');
+    evaluationInput = {
+      'tScoreAtOrBelowMinus2_5AnySite': facts['tScoreAtOrBelowMinus2_5AnySite'],
+    };
+    final tScore = requireBool('tScoreAtOrBelowMinus2_5AnySite');
     if (tScore == null) {
       return missingRule('T_SCORE', 'Bone density condition', evaluationInput, [
-        'T-score',
+        'tScoreAtOrBelowMinus2_5AnySite',
       ])!;
     }
-    final tScoreMatched = tScore > -2.5;
+    final tScoreMatched = !tScore;
     addTrace(
       'T_SCORE',
       tScoreMatched,
@@ -1798,15 +1904,15 @@ class MockAppRepository implements AppRepository {
 
     evaluationInput = {
       'hipVertebralOrMultipleFracturesInLast24M': recentMajor,
-      'highRisk': facts['highRisk'],
+      'veryHighFractureRisk': facts['veryHighFractureRisk'],
     };
-    final highRisk = requireBool('highRisk');
+    final highRisk = requireBool('veryHighFractureRisk');
     if (highRisk == null) {
       return missingRule(
         'HIGH_RISK_WITHOUT_RECENT_MAJOR_FRACTURE',
         'Very high fracture risk clinician confirmation',
         evaluationInput,
-        ['highRisk'],
+        ['veryHighFractureRisk'],
       )!;
     }
     addTrace(

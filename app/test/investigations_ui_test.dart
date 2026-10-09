@@ -42,10 +42,11 @@ class _ConflictingRepository extends _CountingRepository {
   @override
   Future<CaseInvestigations> saveCaseInvestigations({
     required String caseId,
-    required double vitaminDLevel,
-    required double ionisedCalcium,
-    required double bodyWeightKg,
+    required double? vitaminDLevel,
+    required double? ionisedCalcium,
+    required double? bodyWeightKg,
     required int expectedRevision,
+    bool? authoritativeHypocalcaemia,
   }) async {
     if (!_conflicted) {
       _conflicted = true;
@@ -64,6 +65,7 @@ class _ConflictingRepository extends _CountingRepository {
       ionisedCalcium: ionisedCalcium,
       bodyWeightKg: bodyWeightKg,
       expectedRevision: expectedRevision,
+      authoritativeHypocalcaemia: authoritativeHypocalcaemia,
     );
   }
 }
@@ -113,12 +115,12 @@ void main() {
       final caseId = await submittedCase(repository);
       await mountCase(tester, repository, caseId);
 
-      expect(find.text('Patient-Reported Questionnaire'), findsOneWidget);
+      expect(find.text('Patient reported'), findsOneWidget);
       expect(find.text('Investigations'), findsOneWidget);
       expect(find.text('Not completed'), findsOneWidget);
       expect(repository.evaluateCalls, 0);
       expect(
-        tester.getTopLeft(find.text('Patient-Reported Questionnaire')).dy,
+        tester.getTopLeft(find.text('Patient reported')).dy,
         lessThan(tester.getTopLeft(find.text('Investigations')).dy),
       );
       expect(

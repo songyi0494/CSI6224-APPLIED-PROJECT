@@ -25,7 +25,10 @@ class ReasoningTraceEntry {
         nextNodeId: j['nextNodeId']?.toString(),
         contractVersion: j['contractVersion']?.toString(),
         actionsTriggered: (j['actionsTriggered'] as List? ?? const [])
-            .map((a) => PathwayAction.fromJson(Map<String, dynamic>.from(a as Map)))
+            .map(
+              (a) =>
+                  PathwayAction.fromJson(Map<String, dynamic>.from(a as Map)),
+            )
             .toList(growable: false),
         reason: (j['reason'] ?? _liveReason(j)).toString(),
         input: Map<String, Object?>.from((j['input'] as Map?) ?? const {}),
@@ -67,7 +70,9 @@ class PathwayEvaluation {
   ) => PathwayEvaluation(
     pathway: (j['pathway'] ?? j['pathwayId']) as String?,
     decision: (j['decision'] ?? j['status'] ?? 'complete').toString(),
-    ruleVersion: (j['contractVersion'] ?? j['rule_version'] ?? 'evaluate_pathway-v12').toString(),
+    ruleVersion:
+        (j['contractVersion'] ?? j['rule_version'] ?? 'evaluate_pathway-v12')
+            .toString(),
     routingReason: (j['routing_reason'] ?? 'Backend-driven pathway traversal')
         .toString(),
     pathwayRevision: (j['pathwayRevision'] as num?)?.toInt(),
@@ -77,11 +82,11 @@ class PathwayEvaluation {
         .toList(),
     trace: (j['trace'] as List? ?? const [])
         .map(
-          (a) =>
-              ReasoningTraceEntry.fromJson({
-                ...Map<String, dynamic>.from(a as Map),
-                if (j['contractVersion'] != null) 'contractVersion': j['contractVersion'],
-              }),
+          (a) => ReasoningTraceEntry.fromJson({
+            ...Map<String, dynamic>.from(a as Map),
+            if (j['contractVersion'] != null)
+              'contractVersion': j['contractVersion'],
+          }),
         )
         .toList(),
     missingInputs: List<String>.from(j['missing_inputs'] as List? ?? const []),
@@ -123,6 +128,22 @@ class PathwayAction {
       return parts.join(', ');
     }
     if (json['destination'] != null) {
+      if (json['type'] == 'referral') {
+        final destination = switch (json['destination'].toString()) {
+          'SPECIALIST OR FRAGILE BONE CLINIC' =>
+            'a specialist or Fragile Bone Clinic',
+          'SPECIALIST' => 'a specialist',
+          'FRAGILE BONE CLINIC' => 'the Fragile Bone Clinic',
+          'RENAL PHYSICIAN' => 'a renal physician',
+          _ => json['destination'].toString(),
+        };
+        final reason = json['reason']?.toString().trim() ?? '';
+        final sentence = reason.isEmpty
+            ? ''
+            : ' $reason${reason.endsWith('.') ? '' : '.'}';
+        final when = json['when'] == null ? '' : '\nWhen: ${json['when']}';
+        return 'Refer the patient to $destination.$sentence$when';
+      }
       final reason = json['reason'] == null ? '' : ': ${json['reason']}';
       final prefix = json['type'] == 'followUp' ? 'Follow up with' : 'Refer to';
       final when = json['when'] == null ? '' : '\nWhen: ${json['when']}';

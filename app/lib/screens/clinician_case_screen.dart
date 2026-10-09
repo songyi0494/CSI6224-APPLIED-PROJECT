@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/global_sign_out.dart';
 
 import '../data/app_repository.dart';
 import '../models/case_investigations.dart';
@@ -7,6 +8,7 @@ import '../models/clinical_result_contract.dart';
 import '../models/questionnaire.dart';
 import '../utils/clinical_labels.dart';
 import '../widgets/async_panel.dart';
+import '../widgets/clinician_fact_summary.dart';
 import 'investigations_screen.dart';
 import 'pathway_question_screen.dart';
 import 'recommendation_review_screen.dart';
@@ -64,33 +66,6 @@ class ClinicianCaseScreen extends StatelessWidget {
           ),
         ),
       );
-
-  Widget _answerRow(BuildContext context, String label, Object? value) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 3),
-            Text(value?.toString() ?? 'Not provided'),
-          ],
-        ),
-      );
-
-  Object? _questionnaireValue(
-    ClinicalCase assessment,
-    QuestionnaireResponse? response,
-    String key,
-  ) {
-    final answers = response?.answers ?? const <String, Object?>{};
-    if (key == 'postmenopausal' &&
-        !answers.containsKey(key) &&
-        assessment.patientSexAtBirth != 'female') {
-      return 'N/A';
-    }
-    return answers[key];
-  }
 
   String _actionLabel(ClinicalCase assessment) {
     if (assessment.needsClinicianInput) {
@@ -161,7 +136,10 @@ class ClinicianCaseScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Patient overview')),
+    appBar: AppBar(
+      title: const Text('Patient overview'),
+      actions: [GlobalSignOut(repository: repository)],
+    ),
     body: SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Center(
@@ -180,29 +158,67 @@ class ClinicianCaseScreen extends StatelessWidget {
                       assessment.patientName,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    Text('Assessment revision ${assessment.revision}'),
-                    if (assessment.submittedAt != null)
-                      Text('Submitted ${formatDate(assessment.submittedAt!)}'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 24,
+                      runSpacing: 8,
+                      children: [
+                        Text(
+                          'Sex recorded at birth: ${sexAtBirthText(assessment.patientSexAtBirth)}',
+                        ),
+                        Text(
+                          'Age: ${data.patientSummary?.age ?? "Unavailable"}',
+                        ),
+                        Text('Assessment status: ${assessment.status.label}'),
+                        if (assessment.submittedAt != null)
+                          Text(
+                            'Submitted: ${formatDate(assessment.submittedAt!)}',
+                          ),
+                        if (data.investigations?.bodyWeightKg != null)
+                          Text(
+                            'Body weight: ${data.investigations!.bodyWeightKg} kg',
+                          ),
+                      ],
+                    ),
+                    if (assessment.patientSexAtBirth == 'female') ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Postmenopausal status: ${factText(response?.answers['postmenopausal'])} • Patient reported',
+                      ),
+                    ],
                   ]),
                   const SizedBox(height: 12),
-                  _section(context, 'Patient-Reported Questionnaire', [
-                    _answerRow(
-                      context,
-                      'Sex recorded at birth',
-                      sexAtBirthText(assessment.patientSexAtBirth),
-                    ),
-                    for (final item in _patientQuestionnaireItems)
-                      _answerRow(
-                        context,
-                        item.label,
-                        _questionnaireValue(assessment, response, item.key),
-                      ),
-                    _answerRow(
-                      context,
-                      'Age',
-                      data.patientSummary?.age ?? 'Unavailable',
+                  _section(context, 'Patient reported', [
+                    Wrap(
+                      spacing: 24,
+                      runSpacing: 8,
+                      children: [
+                        for (final item in _patientQuestionnaireItems.where(
+                          (item) => item.key != 'postmenopausal',
+                        ))
+                          Text(
+                            '${item.label}: ${factText(response?.answers[item.key])}',
+                          ),
+                      ],
                     ),
                   ]),
+                  const SizedBox(height: 12),
+                  if (response?.answers.containsKey('dietaryDairyServings') ==
+                      true)
+                    Card(
+                      child: ExpansionTile(
+                        title: const Text('Previous questionnaire data'),
+                        subtitle: const Text(
+                          'For reference only. Current patient-reported answers are shown above.',
+                        ),
+                        children: [
+                          Text(
+                            'Historical dairy serves per day: ${response!.answers['dietaryDairyServings']}',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ClinicianFactSummary(facts: assessment.clinicianFacts),
                   const SizedBox(height: 12),
                   _section(context, 'Investigations', [
                     if (data.investigationsError != null) ...[
@@ -221,6 +237,8 @@ class ClinicianCaseScreen extends StatelessWidget {
                         _investigationsStatus(data.investigations!),
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
+                      if (data.investigations!.vitaminDLevel == null)
+                        const Text('Vitamin D: Not recorded'),
                       if (data.investigations!.vitaminDLevel != null)
                         Text(
                           'Vitamin D: ${data.investigations!.vitaminDLevel} ${CaseInvestigations.vitaminDUnit}',
@@ -228,10 +246,6 @@ class ClinicianCaseScreen extends StatelessWidget {
                       if (data.investigations!.ionisedCalcium != null)
                         Text(
                           'Ionised calcium: ${data.investigations!.ionisedCalcium} ${CaseInvestigations.ionisedCalciumUnit}',
-                        ),
-                      if (data.investigations!.bodyWeightKg != null)
-                        Text(
-                          'Body weight: ${data.investigations!.bodyWeightKg} ${CaseInvestigations.bodyWeightUnit}',
                         ),
                       const SizedBox(height: 12),
                       Align(
@@ -260,7 +274,7 @@ class ClinicianCaseScreen extends StatelessWidget {
                     const Padding(
                       padding: EdgeInsets.only(bottom: 10),
                       child: Text(
-                        'Complete and confirm Investigations before starting the pathway.',
+                        'Review investigations before starting the pathway. Unavailable results may be left blank.',
                         textAlign: TextAlign.right,
                       ),
                     ),
@@ -289,7 +303,7 @@ class ClinicianCaseScreen extends StatelessWidget {
 
   static const _patientQuestionnaireItems = <({String key, String label})>[
     (key: 'postmenopausal', label: 'Postmenopausal status'),
-    (key: 'dietaryDairyServings', label: 'Dietary dairy servings'),
+    (key: 'dairyLessThan3Serves', label: 'Fewer than 3 dairy serves per day'),
     (key: 'smoking', label: 'Smoking'),
     (key: 'alcohol', label: 'Alcohol'),
   ];

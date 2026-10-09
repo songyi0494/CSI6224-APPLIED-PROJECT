@@ -4,6 +4,7 @@ import type { Action } from "./action.ts"
 export interface DecisionNode {
     type: "decision";
     question: string;
+    helperText?: string;
     condition: Condition;
     yes: string;
     no: string;
@@ -53,6 +54,7 @@ export interface QuestionState {
     pathwayId: string;
     nodeId: string;
     question: string;
+    helperText?: string;
     requiredFacts: string[];
 }
 

@@ -9,7 +9,10 @@ import '../models/clinical_result_contract.dart';
 import '../models/questionnaire.dart';
 import '../utils/clinical_labels.dart';
 import '../utils/clinical_trace_presentation.dart';
+import '../utils/recommendation_presentation.dart';
 import '../widgets/async_panel.dart';
+import '../widgets/global_sign_out.dart';
+import 'clinician_case_screen.dart';
 
 class RecommendationReviewScreen extends StatefulWidget {
   const RecommendationReviewScreen({
@@ -31,6 +34,7 @@ class _RecommendationReviewScreenState
   final _message = TextEditingController();
   ClinicalCaseStatus? _decision;
   bool _saving = false;
+  bool? _hypocalcaemiaDraft;
   String? _error;
 
   @override
@@ -83,9 +87,35 @@ class _RecommendationReviewScreenState
         setState(
           () => _error = error is AppException
               ? error.message
-              : 'Common Advice could not be generated.',
+              : 'Current Patient Advice could not be generated.',
         );
       }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _confirmHypocalcaemia(
+    _RecommendationReviewData data,
+    VoidCallback reload,
+  ) async {
+    if (_hypocalcaemiaDraft == null) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.repository.confirmCaseHypocalcaemia(
+        caseId: data.assessment.id,
+        value: _hypocalcaemiaDraft!,
+        expectedRevision: data.investigations.hypocalcaemiaRevision,
+      );
+      if (mounted) {
+        setState(() => _hypocalcaemiaDraft = null);
+        reload();
+      }
+    } on AppException catch (error) {
+      if (mounted) setState(() => _error = error.message);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -100,16 +130,18 @@ class _RecommendationReviewScreenState
       return;
     }
     if (_message.text.trim().isEmpty) {
-      setState(() => _error = _decision == ClinicalCaseStatus.withheld
-          ? 'Enter the reason for withholding this recommendation.'
-          : 'Enter the clinician message for the patient.');
+      setState(
+        () => _error = _decision == ClinicalCaseStatus.withheld
+            ? 'Enter the reason for withholding this recommendation.'
+            : 'Enter the clinician message for the patient.',
+      );
       return;
     }
     if (_decision == ClinicalCaseStatus.approved &&
         data.resultsReview == null) {
       setState(
         () => _error =
-            'Generate current Common Advice before approving this result.',
+            'Generate Current Patient Advice before approving this result.',
       );
       return;
     }
@@ -146,15 +178,15 @@ class _RecommendationReviewScreenState
   }
 
   Widget _card(String title, List<Widget> content) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
+    padding: const EdgeInsets.only(bottom: 8),
     child: Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             ...content,
           ],
         ),
@@ -191,52 +223,79 @@ class _RecommendationReviewScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('${index + 1}. ${trace.pathwayId ?? "Pathway"}',
-            style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 4),
           Text(item.title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            'Audit ID: ${trace.pathwayId == null ? "" : "${trace.pathwayId} • "}${trace.ruleId}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: 6),
-          for (final detail in item.details)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(detail),
+          if (item.details.isNotEmpty)
+            Text(
+              item.details.first.startsWith('Rule checked:')
+                  ? item.details.first
+                  : 'Rule checked: ${item.details.join("; ")}',
             ),
           Text('Result: ${item.result}'),
-          if (item.implication != null) Text('Next: ${item.implication}'),
         ],
       ),
     );
   }
 
-  Widget _whyThisResult(ClinicalCase assessment) => Card(
-    child: ExpansionTile(
-      title: const Text('Why This Result'),
-      childrenPadding: const EdgeInsets.all(20),
-      children: [
-        if (assessment.clinicianFacts.isNotEmpty) ...[
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Clinician-confirmed facts',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-          const SizedBox(height: 8),
-          for (final entry in assessment.clinicianFacts.entries)
+  Widget _whyThisRecommendation(ClinicalCase assessment) {
+    final evaluation = assessment.evaluation;
+    final explanation = evaluation == null
+        ? const <String>[]
+        : recommendationExplanation(evaluation);
+    return _card('Why this recommendation', [
+      if (explanation.isEmpty)
+        const Text(
+          'A concise explanation is unavailable for this saved assessment. Open the technical trace to review it.',
+        ),
+      for (final line in explanation)
+        Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(line)),
+      ExpansionTile(
+        key: const ValueKey('technical-trace'),
+        title: const Text('View technical trace'),
+        childrenPadding: const EdgeInsets.symmetric(vertical: 12),
+        children: [
+          if (assessment.clinicianFacts.isNotEmpty) ...[
             Align(
               alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  '${clinicalLabel(entry.key)}: ${factText(entry.value)}',
-                ),
+              child: Text(
+                'Source: Clinician confirmed',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
-          const Divider(height: 28),
+            for (final entry in assessment.clinicianFacts.entries)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${const ['knownPoorMedicationAdherence', 'cognitiveImpairment'].contains(entry.key) ? "Historical reference: " : ""}${clinicalLabel(entry.key)}: ${factText(entry.value)}',
+                ),
+              ),
+            const Divider(),
+          ],
+          if (evaluation != null)
+            for (var i = 0; i < evaluation.trace.length; i++)
+              _traceTile(assessment, i),
         ],
-        if (assessment.evaluation != null)
-          for (var i = 0; i < assessment.evaluation!.trace.length; i++)
-            _traceTile(assessment, i),
+      ),
+    ]);
+  }
+
+  Widget _safetyAndDiscussion(ClinicalCase assessment) => Card(
+    child: ExpansionTile(
+      key: const ValueKey('safety-discussion'),
+      title: const Text('Safety and discussion'),
+      childrenPadding: const EdgeInsets.all(20),
+      children: [
+        if (assessment.evaluation?.warnings.isNotEmpty == true)
+          for (final warning in assessment.evaluation!.warnings) Text(warning)
+        else
+          const Text(
+            'No treatment-specific safety information was supplied for this assessment.',
+          ),
       ],
     ),
   );
@@ -291,71 +350,181 @@ class _RecommendationReviewScreenState
         ),
       ]);
 
+  Widget _reviewLayout(List<Widget> sections) => LayoutBuilder(
+    builder: (context, constraints) {
+      final width = constraints.maxWidth >= 1000
+          ? (constraints.maxWidth - 12) / 2
+          : constraints.maxWidth;
+      return Wrap(
+        spacing: 12,
+        children: [
+          for (final section in sections)
+            SizedBox(width: width, child: section),
+        ],
+      );
+    },
+  );
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Review Result')),
+    appBar: AppBar(
+      title: const Text('Review Result'),
+      actions: [GlobalSignOut(repository: widget.repository)],
+    ),
     body: SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
+          constraints: const BoxConstraints(maxWidth: 1180),
           child: AsyncPanel<_RecommendationReviewData>(
             load: _load,
             builder: (data, reload) {
               final assessment = data.assessment;
               final evaluation = assessment.evaluation;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _card('Care Recommendation', [
-                    if (evaluation == null || evaluation.actions.isEmpty)
+              final adviceIsCurrent =
+                  data.resultsReview != null &&
+                  data.resultsReview!.adviceContractVersion ==
+                      'songyi-advice-20261009' &&
+                  data.resultsReview!.hypocalcaemiaRevision ==
+                      data.investigations.hypocalcaemiaRevision &&
+                  data.resultsReview!.investigationRevision ==
+                      data.investigations.revision &&
+                  data.resultsReview!.questionnaireRevision ==
+                      data.questionnaire?.revision;
+              return _reviewLayout([
+                _card('Care Recommendation', [
+                  if (evaluation == null || !evaluation.canApprove)
+                    const Text(
+                      'More information is required before the recommendation can be completed.',
+                    ),
+                  if (evaluation != null && !evaluation.canApprove)
+                    for (final key in evaluation.missingInputs)
+                      Text(missingRequiredFact(key)),
+                  if (evaluation?.canApprove == true)
+                    for (final action in evaluation!.actions)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: PathwayActionView(action: action),
+                      ),
+                ]),
+                _whyThisRecommendation(assessment),
+                _card('Current Patient Advice', [
+                  if (data.investigations.authoritativeHypocalcaemia == null &&
+                      assessment.canReview) ...[
+                    const Text('Does the patient have hypocalcaemia?'),
+                    DropdownButtonFormField<bool>(
+                      initialValue: _hypocalcaemiaDraft,
+                      decoration: const InputDecoration(
+                        hintText: 'Select an answer',
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: true, child: Text('Yes')),
+                        DropdownMenuItem(value: false, child: Text('No')),
+                      ],
+                      onChanged: _saving
+                          ? null
+                          : (value) =>
+                                setState(() => _hypocalcaemiaDraft = value),
+                    ),
+                    Text(
+                      'Source: Clinician confirmed',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton(
+                        onPressed: _saving || _hypocalcaemiaDraft == null
+                            ? null
+                            : () => _confirmHypocalcaemia(data, reload),
+                        child: const Text('Confirm hypocalcaemia status'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  if (!adviceIsCurrent) ...[
+                    const Text(
+                      'Current Patient Advice has not been generated for this result.',
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton(
+                        onPressed:
+                            _saving ||
+                                data
+                                        .investigations
+                                        .authoritativeHypocalcaemia ==
+                                    null ||
+                                !assessment.canReview
+                            ? null
+                            : () => _generateCommonAdvice(data, reload),
+                        child: const Text('Generate Current Patient Advice'),
+                      ),
+                    ),
+                  ] else ...[
+                    if (data.resultsReview!.calciumAuthorityNeedsConfirmation)
                       const Text(
-                        'No recommendation is available for approval.',
+                        'Calcium advice needs clinical source confirmation. The recorded advice is shown below.',
                       ),
-                    if (evaluation != null)
-                      for (final action in evaluation.actions)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: PathwayActionView(action: action),
-                        ),
-                  ]),
-                  _whyThisResult(assessment),
-                  const SizedBox(height: 16),
-                  _card('Common Advice', [
-                    if (data.resultsReview == null) ...[
-                      const Text(
-                        'Current Common Advice has not been generated for this result.',
+                    for (final advice in currentPatientAdvice(
+                      data.resultsReview!,
+                    ))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(advice),
                       ),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: OutlinedButton(
-                          onPressed: _saving
-                              ? null
-                              : () => _generateCommonAdvice(data, reload),
-                          child: const Text('Generate Common Advice'),
-                        ),
+                  ],
+                ]),
+                if (assessment.evaluation?.warnings.isNotEmpty == true)
+                  _safetyAndDiscussion(assessment),
+                if (assessment.canReview) _decisionCard(data, reload),
+                if (assessment.status == ClinicalCaseStatus.approved ||
+                    assessment.status == ClinicalCaseStatus.withheld)
+                  _card(
+                    assessment.status == ClinicalCaseStatus.withheld
+                        ? 'Saved withholding decision'
+                        : 'Clinician Decision',
+                    [
+                      const Text('Decision status'),
+                      Text(
+                        assessment.status == ClinicalCaseStatus.approved
+                            ? 'Approved'
+                            : 'Withheld',
                       ),
-                    ] else
-                      for (final advice in data.resultsReview!.commonAdvice)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text(advice),
-                        ),
-                  ]),
-                  if (assessment.canReview) _decisionCard(data, reload),
-                  if (assessment.status == ClinicalCaseStatus.approved ||
-                      assessment.status == ClinicalCaseStatus.withheld)
-                    _card(assessment.status == ClinicalCaseStatus.withheld
-                        ? 'Saved withholding decision' : 'Clinician Decision', [
-                      Text(assessment.status.label),
                       if (assessment.decisionNotes?.isNotEmpty == true) ...[
                         const SizedBox(height: 8),
+                        const Text('Clinician note'),
                         Text(assessment.decisionNotes!),
                       ],
-                    ]),
-                ],
-              );
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: () => Navigator.of(
+                          context,
+                        ).popUntil((route) => route.isFirst),
+                        child: const Text('Return to Work Queue'),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton(
+                        onPressed: () {
+                          if (Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop(true);
+                          } else {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute<void>(
+                                builder: (_) => ClinicianCaseScreen(
+                                  caseId: widget.caseId,
+                                  repository: widget.repository,
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        child: const Text('Back to Patient Overview'),
+                      ),
+                    ],
+                  ),
+              ]);
             },
           ),
         ),

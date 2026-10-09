@@ -29,12 +29,21 @@ class ClinicalResultsReview {
     required this.investigationRevision,
     required this.questionnaireRevision,
     required this.generatedAt,
+    this.vitaminDRecheckBeforeTreatment = false,
+    this.adviceContractVersion,
+    this.hypocalcaemiaRevision = 0,
+    this.calciumAuthorityNeedsConfirmation = false,
   });
 
   final List<String> commonAdvice;
   final int investigationRevision;
   final int questionnaireRevision;
   final DateTime generatedAt;
+  // Presentation metadata only; persisted commonAdvice and release are unchanged.
+  final bool vitaminDRecheckBeforeTreatment;
+  final String? adviceContractVersion;
+  final int hypocalcaemiaRevision;
+  final bool calciumAuthorityNeedsConfirmation;
 
   factory ClinicalResultsReview.fromJson(Map<String, dynamic> json) {
     final source = Map<String, dynamic>.from(
@@ -49,16 +58,27 @@ class ClinicalResultsReview {
     }
 
     addRecommendation('vitaminD');
+    if ((json['vitaminD'] as Map?)?['recheckBeforeTreatment'] == true) {
+      advice.add('Recheck vitamin D before starting osteoporosis treatment.');
+    }
     addRecommendation('calcium');
-    addRecommendation('protein');
     advice.addAll(
       (json['lifestyleAdvice'] as List? ?? const [])
           .map((value) => value.toString().trim())
           .where((value) => value.isNotEmpty),
     );
 
+    addRecommendation('protein');
     return ClinicalResultsReview(
+      adviceContractVersion: source['adviceContractVersion']?.toString(),
+      hypocalcaemiaRevision:
+          (source['hypocalcaemiaRevision'] as num?)?.toInt() ?? 0,
       commonAdvice: List.unmodifiable(advice),
+      vitaminDRecheckBeforeTreatment:
+          (json['vitaminD'] as Map?)?['recheckBeforeTreatment'] == true,
+      calciumAuthorityNeedsConfirmation:
+          source['adviceContractVersion'] != 'songyi-advice-20261009' &&
+          (json['calcium'] as Map?)?['hypocalcaemia'] == true,
       investigationRevision:
           (source['investigationRevision'] as num?)?.toInt() ?? 0,
       questionnaireRevision:

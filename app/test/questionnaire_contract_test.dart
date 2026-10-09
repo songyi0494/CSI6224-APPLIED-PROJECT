@@ -23,6 +23,15 @@ Future<void> _selectDropdown(
   await tester.pumpAndSettle();
 }
 
+Future<void> _selectDairy(WidgetTester tester, String option) async {
+  final field = find.byType(DropdownButtonFormField<bool>);
+  await tester.ensureVisible(field);
+  await tester.tap(field);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(option).last);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   test('live question types and answer-key identities remain distinct', () {
     expect(QuestionType.values.map((type) => type.databaseValue), [
@@ -82,17 +91,17 @@ void main() {
       expect(
         form.orderedQuestions
             .firstWhere(
-              (question) => question.fieldKey == 'dietaryDairyServings',
+              (question) => question.fieldKey == 'dairyLessThan3Serves',
             )
             .type,
-        QuestionType.numeric,
+        QuestionType.checkbox,
       );
 
       final response = await repository.submitQuestionnaireResponse(
         answers: const {
           'sex': 'Female',
           'postmenopausal': 'Yes',
-          'dietaryDairyServings': 2,
+          'dairyLessThan3Serves': true,
           'smoking': 'No',
           'alcohol': 'No',
         },
@@ -114,7 +123,7 @@ void main() {
       expect(patientQuestionnaireVisibleKeys, hasLength(4));
       expect(patientQuestionnaireVisibleKeys, {
         'postmenopausal',
-        'dietaryDairyServings',
+        'dairyLessThan3Serves',
         'smoking',
         'alcohol',
       });
@@ -142,7 +151,7 @@ void main() {
       'strokeHistory': 'No',
       'smoking': 'No',
       'alcohol': 'No',
-      'dietaryDairyServings': 2,
+      'dairyLessThan3Serves': true,
     };
 
     expect(
@@ -188,7 +197,7 @@ void main() {
           answers: const {
             'sex': 'Female',
             'postmenopausal': 'Yes',
-            'dietaryDairyServings': 2,
+            'dairyLessThan3Serves': true,
             'smoking': 'No',
             'alcohol': 'No',
           },
@@ -206,7 +215,7 @@ void main() {
         answers: const {
           'sex': 'Male',
           'postmenopausal': 'Yes',
-          'dietaryDairyServings': 2,
+          'dairyLessThan3Serves': true,
           'smoking': 'No',
           'alcohol': 'No',
         },
@@ -376,7 +385,9 @@ void main() {
       expect(find.text('What is your sex?'), findsNothing);
       expect(find.text('Are you postmenopausal?'), findsOneWidget);
       expect(
-        find.text('How many servings of dairy do you have per day?'),
+        find.text(
+          'Do you usually have fewer than 3 serves of dairy foods per day?',
+        ),
         findsOneWidget,
       );
       expect(find.text('Do you currently smoke?'), findsOneWidget);
@@ -390,7 +401,7 @@ void main() {
       expect(find.text('Not sure'), findsNothing);
 
       await _selectDropdown(tester, 0, 'Yes');
-      await tester.enterText(find.byType(TextFormField).first, '2');
+      await _selectDairy(tester, 'Yes');
       await _selectDropdown(tester, 1, 'No');
       await _selectDropdown(tester, 2, 'No');
 
@@ -401,7 +412,9 @@ void main() {
       expect(find.text('What is your sex?'), findsNothing);
       expect(find.text('Are you postmenopausal?'), findsWidgets);
       expect(
-        find.text('How many servings of dairy do you have per day?'),
+        find.text(
+          'Do you usually have fewer than 3 serves of dairy foods per day?',
+        ),
         findsWidgets,
       );
       expect(find.text('Do you currently smoke?'), findsWidgets);
@@ -416,7 +429,7 @@ void main() {
       expect(repository.submittedAnswers, {
         'sex': 'Female',
         'postmenopausal': 'Yes',
-        'dietaryDairyServings': 2,
+        'dairyLessThan3Serves': true,
         'smoking': 'No',
         'alcohol': 'No',
       });
@@ -452,9 +465,7 @@ void main() {
       await tester.tap(start);
       await tester.pumpAndSettle();
       await _selectDropdown(tester, 0, 'Yes');
-      final dairy = find.byType(TextFormField).first;
-      await tester.ensureVisible(dairy);
-      await tester.enterText(dairy, '2');
+      await _selectDairy(tester, 'Yes');
       await _selectDropdown(tester, 1, 'No');
       await _selectDropdown(tester, 2, 'No');
 
@@ -467,7 +478,7 @@ void main() {
       await tester.tap(submit);
       await tester.pumpAndSettle();
 
-      expect(find.text('Questionnaire submitted'), findsWidgets);
+      expect(find.text('Questionnaire completed'), findsWidgets);
       expect(
         find.text('Your responses have been sent for clinician review.'),
         findsOneWidget,
@@ -475,7 +486,7 @@ void main() {
       await tester.tap(find.text('Return to dashboard'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Submitted'), findsOneWidget);
+      expect(find.text('Completed'), findsOneWidget);
       expect(find.text('No assessments yet.'), findsOneWidget);
       expect(find.text('Continue current assessment'), findsNothing);
       expect(find.text('Continue assessment'), findsNothing);

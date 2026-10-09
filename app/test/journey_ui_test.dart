@@ -1,7 +1,6 @@
 import 'package:csi6224_patient_feedback/app.dart';
 import 'package:csi6224_patient_feedback/data/mock_app_repository.dart';
 import 'package:csi6224_patient_feedback/models/patient_questionnaire_catalog.dart';
-import 'package:csi6224_patient_feedback/models/questionnaire.dart';
 import 'package:csi6224_patient_feedback/models/app_user.dart';
 import 'package:csi6224_patient_feedback/models/clinical_input.dart';
 import 'package:csi6224_patient_feedback/screens/questionnaire_response_screen.dart';
@@ -36,24 +35,20 @@ void main() {
         home: QuestionnaireResponseScreen(
           repository: repository,
           profileSexAtBirth: 'female',
-          form: const QuestionnaireForm(
-            questions: [
-              QuestionnaireQuestion(
-                id: 'system-smoking-row',
-                fieldKey: 'smoking',
-                questionText: 'Do you currently smoke?',
-                type: QuestionType.singleChoice,
-                options: ['Yes', 'No', 'Not sure'],
-                displayOrder: 1,
-                section: 'Lifestyle',
-              ),
-            ],
-          ),
+          form: await repository.fetchQuestionnaireForm(),
         ),
       ),
     );
     await tester.pumpAndSettle();
     await _selectDropdown(tester, 0, 'No');
+    await _selectDropdown(tester, 1, 'No');
+    await _selectDropdown(tester, 2, 'No');
+    final dairy = find.byType(DropdownButtonFormField<bool>);
+    await tester.ensureVisible(dairy);
+    await tester.tap(dairy);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('No').last);
+    await tester.pumpAndSettle();
     final review = find.widgetWithText(FilledButton, 'Review your answers');
     await tester.ensureVisible(review);
     await tester.tap(review);
@@ -71,7 +66,7 @@ void main() {
       MaterialApp(home: QuestionnaireSubmittedScreen(response: response!)),
     );
     await tester.pump();
-    expect(find.text('Questionnaire submitted'), findsWidgets);
+    expect(find.text('Questionnaire completed'), findsWidgets);
   });
 
   testWidgets(
@@ -103,7 +98,7 @@ void main() {
           'myocardialInfarctionTiming': 'Not applicable',
           'strokeHistory': 'No',
           'strokeTiming': 'Not applicable',
-          'dietaryDairyServings': 2,
+          'dairyLessThan3Serves': true,
           'smoking': 'No',
           'alcohol': 'No',
         },
@@ -121,20 +116,23 @@ void main() {
       await tester.tap(find.widgetWithText(OutlinedButton, 'Continue'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Patient-Reported Questionnaire'), findsOneWidget);
-      expect(find.text('Patient reported'), findsNothing);
+      expect(find.text('Patient reported'), findsOneWidget);
+      expect(find.text('Patient-Reported Questionnaire'), findsNothing);
       for (final label in const [
         'Sex recorded at birth',
         'Postmenopausal status',
-        'Dietary dairy servings',
+        'Fewer than 3 dairy serves per day',
         'Smoking',
         'Alcohol',
         'Age',
       ]) {
-        expect(find.text(label), findsOneWidget);
+        expect(find.textContaining("$label:"), findsOneWidget);
       }
-      expect(find.text('Female'), findsOneWidget);
-      expect(find.text('71'), findsOneWidget);
+      expect(
+        find.textContaining('Sex recorded at birth: Female'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Age: 71'), findsOneWidget);
       expect(
         find.text('About when did you go through menopause?'),
         findsNothing,
@@ -158,7 +156,7 @@ void main() {
     },
   );
 
-  testWidgets('clinician overview shows N/A for absent male menopause answer', (
+  testWidgets('clinician overview omits nonapplicable male menopause', (
     tester,
   ) async {
     final repository = MockAppRepository();
@@ -175,7 +173,7 @@ void main() {
     await _signIn(repository, 'male.patient@example.test');
     await repository.submitQuestionnaireResponse(
       answers: const {
-        'dietaryDairyServings': 2,
+        'dairyLessThan3Serves': true,
         'smoking': 'No',
         'alcohol': 'No',
       },
@@ -192,8 +190,8 @@ void main() {
     await tester.tap(find.widgetWithText(OutlinedButton, 'Continue'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Postmenopausal status'), findsOneWidget);
-    expect(find.text('N/A'), findsOneWidget);
-    expect(find.text('Male'), findsOneWidget);
+    expect(find.textContaining('Postmenopausal status'), findsNothing);
+    expect(find.text('N/A'), findsNothing);
+    expect(find.textContaining('Sex recorded at birth: Male'), findsOneWidget);
   });
 }

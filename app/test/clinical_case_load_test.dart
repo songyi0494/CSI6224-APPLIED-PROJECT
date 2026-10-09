@@ -276,8 +276,8 @@ void main() {
     expect(summary.age, 71);
     expect(review?.commonAdvice, [
       'Vitamin D advice',
-      'Protein advice',
       'Exercise advice',
+      'Protein advice',
     ]);
     expect(paths, contains(endsWith('/get_clinical_case_patient_summary')));
     expect(paths, contains(endsWith('/get_clinical_case_results_review')));

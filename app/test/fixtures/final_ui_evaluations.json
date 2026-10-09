@@ -1,0 +1,362 @@
+{
+  "p1": {
+    "facts": {
+      "minimalTraumaFracture": "yes",
+      "fractureSite": "hip",
+      "eGFR": true,
+      "osteoporosisTreatmentStatus": false,
+      "frailtyResidentialOrLimitedLifeExpectancy": false,
+      "knownPoorMedicationAdherence": false,
+      "cognitiveImpairment": false,
+      "testAvailability": true,
+      "tScoreAtOrBelowMinus2_5AnySite": true,
+      "hipVertebralOrMultipleFracturesInLast24M": false,
+      "veryHighFractureRisk": true,
+      "adherenceConcern": false
+    },
+    "eligibility": {
+      "sex": "female",
+      "age": 71,
+      "postmenopausal": true,
+      "questionnaireRevision": 1,
+      "ageAsOf": "2026-10-09"
+    },
+    "evaluation": {
+      "status": "complete",
+      "pathwayId": "PATHWAY1",
+      "actions": [
+        {
+          "type": "referral",
+          "destination": "SPECIALIST",
+          "reason": "For privately funded osteoanabolic therapy."
+        }
+      ],
+      "trace": [
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "P1_DEMOGRAPHIC_ELIGIBILITY",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "MINIMAL_TRAUMA_KNOWN",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "MINIMAL_TRAUMA_KNOWN",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "MINIMAL_TRAUMA_FRACTURE",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "MINIMAL_TRAUMA_FRACTURE",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "FRACTURE_SITE_KNOWN",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "FRACTURE_SITE_KNOWN",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "FRACTURE_SITE_ELIGIBLE",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "FRACTURE_SITE_ELIGIBLE",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "RENAL_DYSFUNCTION",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "RENAL_DYSFUNCTION",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "ON_OSTEOPOROSIS_TREATMENT",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "ON_OSTEOPOROSIS_TREATMENT",
+          "nodeType": "decision",
+          "matched": false,
+          "nextNodeId": "RESIDENTIAL_OR_FRAILTY",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "RESIDENTIAL_OR_FRAILTY",
+          "nodeType": "decision",
+          "matched": false,
+          "nextNodeId": "ADHERENCE_CONCERN",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "ADHERENCE_CONCERN",
+          "nodeType": "decision",
+          "matched": false,
+          "nextNodeId": "DXA_SCAN_AVAILABILITY",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "DXA_SCAN_AVAILABILITY",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "T_SCORE_CHECK",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "T_SCORE_CHECK",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "RECENT_MAJOR_FRACTURES",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "RECENT_MAJOR_FRACTURES",
+          "nodeType": "decision",
+          "matched": false,
+          "nextNodeId": "HIGH_RISK_CHECK",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "HIGH_RISK_CHECK",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "LEAF_PRIVATELY_FUNDED_OSTEOANABOLIC_REFERRAL",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "LEAF_PRIVATELY_FUNDED_OSTEOANABOLIC_REFERRAL",
+          "nodeType": "leaf",
+          "actionsTriggered": [
+            {
+              "type": "referral",
+              "destination": "SPECIALIST",
+              "reason": "For privately funded osteoanabolic therapy."
+            }
+          ]
+        }
+      ],
+      "contractVersion": "songyi-p1p2-20261009-adherence",
+      "pathwayRevision": 1,
+      "investigationRevision": 1
+    }
+  },
+  "p2": {
+    "facts": {
+      "minimalTraumaFracture": "yes",
+      "fractureSite": "hip",
+      "eGFR": true,
+      "osteoporosisTreatmentStatus": true,
+      "frailtyResidentialOrLimitedLifeExpectancy": false,
+      "knownPoorMedicationAdherence": false,
+      "cognitiveImpairment": false,
+      "testAvailability": true,
+      "tScoreAtOrBelowMinus2_5AnySite": true,
+      "hipVertebralOrMultipleFracturesInLast24M": false,
+      "veryHighFractureRisk": true,
+      "antiresorptiveTreatmentStatus": true,
+      "antiresorptiveTreatmentOver12Months": true,
+      "adheredToTheTreatment": true,
+      "symptomaticFractureInLast12M": true,
+      "multipleFractures": true,
+      "lowBMD": true,
+      "priorMIorStroke": false,
+      "sequencingFromDenosumab": false
+    },
+    "eligibility": {
+      "sex": "female",
+      "age": 71,
+      "postmenopausal": true,
+      "questionnaireRevision": 1,
+      "ageAsOf": "2026-10-09"
+    },
+    "evaluation": {
+      "status": "complete",
+      "pathwayId": "PATHWAY2",
+      "actions": [
+        {
+          "type": "referral",
+          "destination": "SPECIALIST OR FRAGILE BONE CLINIC",
+          "reason": "Consider commencement of romosozumab."
+        },
+        {
+          "type": "medication",
+          "medication": "Romosozumab",
+          "dose": "210mg",
+          "route": "subcut",
+          "frequency": "monthly",
+          "duration": "12 months"
+        }
+      ],
+      "trace": [
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "P1_DEMOGRAPHIC_ELIGIBILITY",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "MINIMAL_TRAUMA_KNOWN",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "MINIMAL_TRAUMA_KNOWN",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "MINIMAL_TRAUMA_FRACTURE",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "MINIMAL_TRAUMA_FRACTURE",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "FRACTURE_SITE_KNOWN",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "FRACTURE_SITE_KNOWN",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "FRACTURE_SITE_ELIGIBLE",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "FRACTURE_SITE_ELIGIBLE",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "RENAL_DYSFUNCTION",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "RENAL_DYSFUNCTION",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "ON_OSTEOPOROSIS_TREATMENT",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "ON_OSTEOPOROSIS_TREATMENT",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "LEAF_REDIRECT_PATHWAY2",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY1",
+          "nodeId": "LEAF_REDIRECT_PATHWAY2",
+          "nodeType": "leaf",
+          "actionsTriggered": [
+            {
+              "type": "pathwayRedirect",
+              "targetPathway": "PATHWAY2"
+            }
+          ]
+        },
+        {
+          "pathwayId": "PATHWAY2",
+          "nodeId": "ON_ANTIRESORPTIVE_TREATMENT",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "ANTIRESORPTIVE_TREATMENT_DURATION",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY2",
+          "nodeId": "ANTIRESORPTIVE_TREATMENT_DURATION",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "TREATMENT_ADHERENCE",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY2",
+          "nodeId": "TREATMENT_ADHERENCE",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "SYMPTOMATIC_FRACTURE",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY2",
+          "nodeId": "SYMPTOMATIC_FRACTURE",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "MULTIPLE_FRACTURES",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY2",
+          "nodeId": "MULTIPLE_FRACTURES",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "CHECK_BMD",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY2",
+          "nodeId": "CHECK_BMD",
+          "nodeType": "decision",
+          "matched": true,
+          "nextNodeId": "MI_OR_STROKE_HISTORY",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY2",
+          "nodeId": "MI_OR_STROKE_HISTORY",
+          "nodeType": "decision",
+          "matched": false,
+          "nextNodeId": "SEQUENCING_NO_HISTORY",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY2",
+          "nodeId": "SEQUENCING_NO_HISTORY",
+          "nodeType": "decision",
+          "matched": false,
+          "nextNodeId": "LEAF_ROMOSOZUMAB_REFERRAL",
+          "actionsTriggered": []
+        },
+        {
+          "pathwayId": "PATHWAY2",
+          "nodeId": "LEAF_ROMOSOZUMAB_REFERRAL",
+          "nodeType": "leaf",
+          "actionsTriggered": [
+            {
+              "type": "referral",
+              "destination": "SPECIALIST OR FRAGILE BONE CLINIC",
+              "reason": "Consider commencement of romosozumab."
+            },
+            {
+              "type": "medication",
+              "medication": "Romosozumab",
+              "dose": "210mg",
+              "route": "subcut",
+              "frequency": "monthly",
+              "duration": "12 months"
+            }
+          ]
+        }
+      ],
+      "contractVersion": "songyi-p1p2-20261009-adherence",
+      "pathwayRevision": 1,
+      "investigationRevision": 1
+    }
+  }
+}

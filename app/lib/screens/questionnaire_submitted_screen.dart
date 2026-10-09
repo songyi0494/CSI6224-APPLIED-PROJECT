@@ -1,16 +1,27 @@
+import '../widgets/global_sign_out.dart';
 import 'package:flutter/material.dart';
 
 import '../models/questionnaire.dart';
 import '../utils/clinical_labels.dart';
 
 class QuestionnaireSubmittedScreen extends StatelessWidget {
-  const QuestionnaireSubmittedScreen({required this.response, super.key});
+  const QuestionnaireSubmittedScreen({
+    required this.response,
+    this.onSignOut,
+    super.key,
+  });
 
   final QuestionnaireResponse response;
+  final VoidCallback? onSignOut;
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Questionnaire submitted')),
+    appBar: AppBar(
+      title: const Text('Questionnaire completed'),
+      actions: [
+        if (onSignOut != null) GlobalSignOutButton(onPressed: onSignOut),
+      ],
+    ),
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 620),
@@ -30,7 +41,7 @@ class QuestionnaireSubmittedScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Questionnaire submitted',
+                    'Questionnaire completed',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),

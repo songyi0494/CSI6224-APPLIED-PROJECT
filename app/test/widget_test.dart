@@ -21,13 +21,11 @@ MockAppRepository repository() => MockAppRepository(
 
 const completePathway1ClinicianInput = Pathway1ClinicianInput(
   egfr: true,
-  clinicalFrailtyScore: 4,
-  lifeExpectancy: 10,
-  knownPoorMedicationAdherence: false,
-  cognitiveImpairment: false,
+  frailtyResidentialOrLimitedLifeExpectancy: false,
+  adherenceConcern: false,
   dxaDoneWithinPrevious2Years: true,
   dxaImpractical: false,
-  tScoreValue: -3.5,
+  tScoreAtOrBelowMinus2_5AnySite: true,
   tScoreSite: 'femoral_neck',
   hipVertebralOrMultipleFracturesInLast24M: true,
   yearsSinceMenopause: 20,
@@ -120,16 +118,16 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Patient overview'), findsOneWidget);
       expect(find.text('Avery Martin'), findsOneWidget);
-      expect(find.text('Patient-Reported Questionnaire'), findsOneWidget);
+      expect(find.text('Patient reported'), findsOneWidget);
       for (final label in const [
         'Sex recorded at birth',
         'Postmenopausal status',
-        'Dietary dairy servings',
+        'Fewer than 3 dairy serves per day',
         'Smoking',
         'Alcohol',
         'Age',
       ]) {
-        expect(find.text(label), findsOneWidget);
+        expect(find.textContaining("$label:"), findsOneWidget);
       }
       for (final removedSection in const [
         'Assessment Status',
@@ -139,8 +137,8 @@ void main() {
       ]) {
         expect(find.text(removedSection), findsNothing);
       }
-      expect(find.text('Patient reported'), findsNothing);
-      expect(find.text('71'), findsOneWidget);
+      expect(find.text('Patient-Reported Questionnaire'), findsNothing);
+      expect(find.textContaining('Age: 71'), findsOneWidget);
       expect(find.text('Investigations'), findsOneWidget);
       expect(find.text('Not completed'), findsOneWidget);
       expect(find.text('Start Pathway'), findsOneWidget);
@@ -223,8 +221,8 @@ void main() {
     expect(find.text('Clinician-entered facts'), findsNothing);
     expect(find.text('Lifestyle Recommendations'), findsNothing);
     expect(find.text('Reload assessment'), findsNothing);
-    expect(find.text('Why This Result'), findsOneWidget);
-    expect(find.text('Common Advice'), findsOneWidget);
+    expect(find.text('Why this recommendation'), findsOneWidget);
+    expect(find.text('Current Patient Advice'), findsOneWidget);
     expect(find.widgetWithText(ChoiceChip, 'Approve'), findsOneWidget);
     expect(find.widgetWithText(ChoiceChip, 'Withhold'), findsOneWidget);
     expect(
@@ -270,21 +268,24 @@ void main() {
     expect(find.textContaining('T_SCORE'), findsNothing);
     expect(find.textContaining('Rule version'), findsNothing);
     expect(
-      find.text('Your clinician has approved this care recommendation.'),
+      find.text('Your clinician has reviewed and approved your care plan.'),
       findsOneWidget,
     );
     expect(find.text('Reviewed and approved'), findsNothing);
 
     await tapVisible(
       tester,
-      find.text('View recommendation'),
+      find.text('View care plan'),
       find.byType(ListView).last,
     );
-    expect(find.text('Your Care Recommendation'), findsOneWidget);
-    expect(find.text('Reviewed by Your Clinician'), findsOneWidget);
-    expect(find.text('Lifestyle Recommendations'), findsOneWidget);
+    expect(find.text('Your Care Plan'), findsOneWidget);
+    expect(
+      find.text('Reviewed and approved by your clinician.'),
+      findsOneWidget,
+    );
+    expect(find.text('Your Bone Health Advice'), findsOneWidget);
     expect(find.text('Clinician-reviewed mock Common Advice.'), findsOneWidget);
-    expect(find.text('Care Recommendation'), findsOneWidget);
+    expect(find.text('Treatment Options'), findsOneWidget);
     expect(
       find.text('Consider commencement of osteoanabolic therapy'),
       findsOneWidget,
@@ -293,7 +294,7 @@ void main() {
       find.text('Reviewed recommendation and clinical inputs.'),
       findsOneWidget,
     );
-    expect(find.text('Clinician Message'), findsOneWidget);
+    expect(find.text('Message from your clinician'), findsOneWidget);
     expect(find.textContaining('Pathway 1'), findsNothing);
     expect(find.textContaining('PATHWAY1'), findsNothing);
     expect(find.textContaining('Treatment naïve'), findsNothing);
@@ -304,6 +305,11 @@ void main() {
     expect(find.textContaining('rule_version'), findsNothing);
     expect(find.textContaining('Rule version'), findsNothing);
     expect(find.textContaining('Technical rule'), findsNothing);
+    await tester.tap(find.byTooltip('Sign out'));
+    await tester.pumpAndSettle();
+    expect(await repo.loadProfile(), isNull);
+    expect(find.text('Sign in to continue'), findsOneWidget);
+    expect(find.text('Your Care Plan'), findsNothing);
   });
   testWidgets('logout removes protected navigation and returns to sign-in', (
     tester,

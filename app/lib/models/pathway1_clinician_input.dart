@@ -1,6 +1,7 @@
 class Pathway1ClinicianInput {
   const Pathway1ClinicianInput({
     this.egfr,
+    this.adherenceConcern,
     this.clinicalFrailtyScore,
     this.lifeExpectancy,
     this.knownPoorMedicationAdherence,
@@ -13,10 +14,18 @@ class Pathway1ClinicianInput {
     this.clinicianConfirmedVeryHighRisk,
     this.yearsSinceMenopause,
     this.robustWoman,
+    this.tScoreAtOrBelowMinus2_5AnySite,
+    this.veryHighFractureRisk,
+    this.frailtyResidentialOrLimitedLifeExpectancy,
   });
 
+  // Raw score/site and the old risk flag can be read from history, but are
+  // not emitted by toJson or toEvaluatorFacts as current decision authority.
   final double? lifeExpectancy, tScoreValue, yearsSinceMenopause;
-  final bool? egfr;
+  final bool? egfr, adherenceConcern;
+  final bool? tScoreAtOrBelowMinus2_5AnySite,
+      veryHighFractureRisk,
+      frailtyResidentialOrLimitedLifeExpectancy;
   final int? clinicalFrailtyScore;
   final String? tScoreSite;
   final bool? knownPoorMedicationAdherence,
@@ -34,19 +43,19 @@ class Pathway1ClinicianInput {
     }
 
     put('eGFR', egfr);
-    put('clinicalFrailtyScore', clinicalFrailtyScore);
-    put('lifeExpectancy', lifeExpectancy);
-    put('knownPoorMedicationAdherence', knownPoorMedicationAdherence);
-    put('cognitiveImpairment', cognitiveImpairment);
+    put('adherenceConcern', adherenceConcern);
     put('dxaDoneWithinPrevious2Years', dxaDoneWithinPrevious2Years);
     put('dxaImpractical', dxaImpractical);
-    put('tScoreValue', tScoreValue);
-    put('tScoreSite', tScoreSite);
+    put('tScoreAtOrBelowMinus2_5AnySite', tScoreAtOrBelowMinus2_5AnySite);
+    put('veryHighFractureRisk', veryHighFractureRisk);
+    put(
+      'frailtyResidentialOrLimitedLifeExpectancy',
+      frailtyResidentialOrLimitedLifeExpectancy,
+    );
     put(
       'hipVertebralOrMultipleFracturesInLast24M',
       hipVertebralOrMultipleFracturesInLast24M,
     );
-    put('clinicianConfirmedVeryHighRisk', clinicianConfirmedVeryHighRisk);
     put('yearsSinceMenopause', yearsSinceMenopause);
     put('robustWoman', robustWoman);
     return json;
@@ -59,21 +68,21 @@ class Pathway1ClinicianInput {
     }
 
     put('eGFR', egfr);
-    put('clinicalFrailtyScore', clinicalFrailtyScore);
-    put('lifeExpectancy', lifeExpectancy);
-    put('knownPoorMedicationAdherence', knownPoorMedicationAdherence);
-    put('cognitiveImpairment', cognitiveImpairment);
+    put('adherenceConcern', adherenceConcern);
     if (dxaImpractical != null) {
       facts['testAvailable'] = !dxaImpractical!;
     }
     put('testWithinLast2Years', dxaDoneWithinPrevious2Years);
-    put('T-score', tScoreValue);
-    put('tScoreSite', tScoreSite);
+    put('tScoreAtOrBelowMinus2_5AnySite', tScoreAtOrBelowMinus2_5AnySite);
+    put('veryHighFractureRisk', veryHighFractureRisk);
+    put(
+      'frailtyResidentialOrLimitedLifeExpectancy',
+      frailtyResidentialOrLimitedLifeExpectancy,
+    );
     put(
       'hipVertebralOrMultipleFracturesInLast24M',
       hipVertebralOrMultipleFracturesInLast24M,
     );
-    put('highRisk', clinicianConfirmedVeryHighRisk);
     put('yearSincePostmenopausal', yearsSinceMenopause);
     put('isRobustWoman', robustWoman);
     return facts;
@@ -82,15 +91,31 @@ class Pathway1ClinicianInput {
   factory Pathway1ClinicianInput.fromJson(Map<String, dynamic>? json) {
     final f = json ?? const <String, dynamic>{};
     return Pathway1ClinicianInput(
+      adherenceConcern: f['adherenceConcern'] is bool
+          ? f['adherenceConcern'] as bool
+          : null,
       // Historical raw numbers require a new threshold confirmation.
       egfr: f['eGFR'] is bool ? f['eGFR'] as bool : null,
-      clinicalFrailtyScore: (f['clinicalFrailtyScore'] as num?)?.toInt(),
-      lifeExpectancy: (f['lifeExpectancy'] as num?)?.toDouble(),
-      knownPoorMedicationAdherence:
-          f['knownPoorMedicationAdherence'] as bool?,
+      frailtyResidentialOrLimitedLifeExpectancy:
+          f['frailtyResidentialOrLimitedLifeExpectancy'] is bool
+          ? f['frailtyResidentialOrLimitedLifeExpectancy'] as bool
+          : null,
+      tScoreAtOrBelowMinus2_5AnySite:
+          f['tScoreAtOrBelowMinus2_5AnySite'] is bool
+          ? f['tScoreAtOrBelowMinus2_5AnySite'] as bool
+          : null,
+      veryHighFractureRisk: f['veryHighFractureRisk'] is bool
+          ? f['veryHighFractureRisk'] as bool
+          : null,
+      clinicalFrailtyScore: f['clinicalFrailtyScore'] is num
+          ? (f['clinicalFrailtyScore'] as num).toInt()
+          : null,
+      lifeExpectancy: f['lifeExpectancy'] is num
+          ? (f['lifeExpectancy'] as num).toDouble()
+          : null,
+      knownPoorMedicationAdherence: f['knownPoorMedicationAdherence'] as bool?,
       cognitiveImpairment: f['cognitiveImpairment'] as bool?,
-      dxaDoneWithinPrevious2Years:
-          f['dxaDoneWithinPrevious2Years'] as bool?,
+      dxaDoneWithinPrevious2Years: f['dxaDoneWithinPrevious2Years'] as bool?,
       dxaImpractical: f['dxaImpractical'] as bool?,
       tScoreValue: (f['tScoreValue'] as num?)?.toDouble(),
       tScoreSite: f['tScoreSite'] as String?,

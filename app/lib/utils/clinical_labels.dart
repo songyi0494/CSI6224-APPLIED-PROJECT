@@ -1,6 +1,8 @@
 import '../models/live_pathway.dart';
 
 const clinicalLabels = <String, String>{
+  'frailtyResidentialOrLimitedLifeExpectancy':
+      'Residential care, severe frailty, or limited life expectancy',
   'osteoporosisTreatmentStatus': 'Previous or current osteoporosis medicine',
   'age': 'Age in years',
   'sex': 'Sex recorded at birth',
@@ -8,9 +10,10 @@ const clinicalLabels = <String, String>{
   'minimalTraumaFracture': 'Fracture after a minor fall or injury',
   'fractureSite': 'Fracture site',
   'eGFR': 'Kidney function (eGFR)',
-  'clinicalFrailtyScore': 'Clinical frailty score',
-  'lifeExpectancy': 'Life expectancy recorded by a clinician (years)',
-  'liveInResidentialCare': 'Lives in residential aged care',
+  'clinicalFrailtyScore': 'Historical clinical frailty score',
+  'lifeExpectancy': 'Historical life-expectancy value (years)',
+  'liveInResidentialCare': 'Historical residential-care record',
+  'adherenceConcern': 'Treatment-adherence concern',
   'knownPoorMedicationAdherence': 'Difficulty taking medicines as prescribed',
   'cognitiveImpairment': 'Diagnosed cognitive impairment',
   'testAvailable': 'Bone density test available',

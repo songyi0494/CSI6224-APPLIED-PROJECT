@@ -71,12 +71,38 @@ class SupabaseAppRepository implements AppRepository {
   bool get isMock => false;
   @override
   Stream<void> get sessionChanges => client.auth.onAuthStateChange.map((_) {});
-  Future<T> _call<T>(Future<T> Function() work, String message) async {
+  Future<T> _call<T>(
+    Future<T> Function() work,
+    String message, {
+    String? debugContext,
+  }) async {
     try {
       return await work().timeout(const Duration(seconds: 25));
     } on AppException {
       rethrow;
-    } catch (_) {
+    } catch (error) {
+      if (debugContext != null) {
+        // Log only a classified reason; never raw backend text or patient data.
+        final reason = error is PostgrestException
+            ? switch (error.message) {
+                'All required questionnaire questions must be answered' =>
+                  'missing_active_answer',
+                'Required questionnaire choices must be Yes or No' =>
+                  'invalid_active_choice',
+                'Dietary dairy servings must be a number' => 'invalid_dairy',
+                'Sex recorded at birth is unavailable in your profile' =>
+                  'profile_gender_unavailable',
+                'Questionnaire response has already been submitted' =>
+                  'already_submitted',
+                'You can only submit your own questionnaire response' =>
+                  'ownership_denied',
+                _ => 'backend_failure',
+              }
+            : 'transport_or_client_failure';
+        if (kDebugMode) {
+          debugPrint('$debugContext reason=$reason');
+        }
+      }
       throw AppException(message);
     }
   }
@@ -214,9 +240,10 @@ class SupabaseAppRepository implements AppRepository {
     try {
       final rows = await client.rpc('get_clinician_case_list');
       return (rows as List)
-          .map((row) => ClinicalCase.fromJson(
-                Map<String, dynamic>.from(row as Map),
-              ))
+          .map(
+            (row) =>
+                ClinicalCase.fromJson(Map<String, dynamic>.from(row as Map)),
+          )
           .toList(growable: false);
     } catch (error, stackTrace) {
       if (kDebugMode) {
@@ -283,10 +310,11 @@ class SupabaseAppRepository implements AppRepository {
   @override
   Future<CaseInvestigations> saveCaseInvestigations({
     required String caseId,
-    required double vitaminDLevel,
-    required double ionisedCalcium,
-    required double bodyWeightKg,
+    required double? vitaminDLevel,
+    required double? ionisedCalcium,
+    required double? bodyWeightKg,
     required int expectedRevision,
+    bool? authoritativeHypocalcaemia,
   }) => _investigationCall(() async {
     final result = await client.rpc(
       'save_case_investigations',
@@ -295,6 +323,26 @@ class SupabaseAppRepository implements AppRepository {
         'p_vitamin_d_level': vitaminDLevel,
         'p_ionised_calcium': ionisedCalcium,
         'p_body_weight_kg': bodyWeightKg,
+        'p_expected_revision': expectedRevision,
+        'p_authoritative_hypocalcaemia': authoritativeHypocalcaemia,
+      },
+    );
+    return CaseInvestigations.fromRpcJson(
+      Map<String, dynamic>.from(result as Map),
+    );
+  });
+
+  @override
+  Future<CaseInvestigations> confirmCaseHypocalcaemia({
+    required String caseId,
+    required bool value,
+    required int expectedRevision,
+  }) => _investigationCall(() async {
+    final result = await client.rpc(
+      'confirm_case_hypocalcaemia',
+      params: {
+        'p_case_id': caseId,
+        'p_value': value,
         'p_expected_revision': expectedRevision,
       },
     );
@@ -440,6 +488,8 @@ class SupabaseAppRepository implements AppRepository {
         'p_expected_investigation_revision': investigationRevision,
         'p_expected_questionnaire_revision':
             resultsReview?.questionnaireRevision,
+        'p_expected_hypocalcaemia_revision':
+            resultsReview?.hypocalcaemiaRevision,
       },
     );
   }, 'The final decision could not be saved. No result was released.');
@@ -624,7 +674,14 @@ class SupabaseAppRepository implements AppRepository {
         }
         row = await client
             .from('questionnaire_responses')
-            .update({'answers': productionAnswers})
+            .update({
+              'answers': {
+                ...Map<String, Object?>.from(
+                  row['answers'] as Map? ?? const {},
+                ),
+                ...productionAnswers,
+              },
+            })
             .eq('id', row['id'])
             .eq('status', 'draft')
             .select()
@@ -645,6 +702,7 @@ class SupabaseAppRepository implements AppRepository {
       );
     },
     'Your questionnaire could not be submitted. Your answers remain on this screen so you can retry.',
+    debugContext: 'QUESTIONNAIRE SUBMIT ERROR:',
   );
 
   static Map<String, Object?> governedQuestionnaireAnswers(
@@ -656,6 +714,12 @@ class SupabaseAppRepository implements AppRepository {
     if (unsupported.isNotEmpty) {
       throw const AppException(
         'This questionnaire contains an answer that is not approved for production submission. Reload the questionnaire and try again.',
+      );
+    }
+    if (answers.containsKey('dairyLessThan3Serves') &&
+        answers['dairyLessThan3Serves'] is! bool) {
+      throw const AppException(
+        'Answer the dairy threshold question with Yes or No.',
       );
     }
     return Map<String, Object?>.unmodifiable(answers);

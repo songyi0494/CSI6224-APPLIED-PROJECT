@@ -92,9 +92,7 @@ test('old >=12 duration fact requires a new confirmation; no reinterpretation',(
 test('P2 duration new fact rejects numeric or uncertain values',()=>{
   for(const value of [12,'yes','not_sure']) assert.equal(validateFacts({antiresorptiveTreatmentOver12Months:value},factSchema).valid,false);
 });
-test('unapproved remaining numeric contracts are unchanged and explicitly reproducible',()=>{
-  for(const key of ['clinicalFrailtyScore','lifeExpectancy','femoralNeckTscore','hipTscore','lumbarSpineTscore','FRAX10YmajorOsteoporoticFractureRiskPercent','FRAX10YmajorHipFractureRiskPercent']) assert.equal(factSchema[key].type,'number');
-  const p1=docs.PATHWAY1;
-  assert.equal(p1.nodes.RESIDENTIAL_OR_FRAILTY.condition.any[1].value,true);
-  assert.equal(p1.nodes.T_SCORE_CHECK.condition.any[0].value,true);
+test('care components are no longer active numeric/Boolean contracts',()=>{
+  for(const key of ['clinicalFrailtyScore','lifeExpectancy','liveInResidentialCare']) assert.equal(key in factSchema,false);
+  assert.deepEqual(docs.PATHWAY1.nodes.RESIDENTIAL_OR_FRAILTY.condition,{fact:'frailtyResidentialOrLimitedLifeExpectancy',operator:'equals',value:true});
 });

@@ -1,0 +1,331 @@
+{
+    "metadata": {
+        "id": "PATHWAY1",
+        "title": "Treatment naive patients - General"
+    },
+    "requiredFields": [
+        "p1DemographicEligible",
+        "minimalTraumaFracture",
+        "fractureSite",
+        "eGFR",
+        "osteoporosisTreatmentStatus",
+        "knownPoorMedicationAdherence",
+        "cognitiveImpairment",
+        "testAvailability",
+        "hipVertebralOrMultipleFracturesInLast24M",
+        "tScoreAtOrBelowMinus2_5AnySite",
+        "veryHighFractureRisk",
+        "frailtyResidentialOrLimitedLifeExpectancy"
+    ],
+    "root": "P1_DEMOGRAPHIC_ELIGIBILITY",
+    "nodes": {
+        "P1_DEMOGRAPHIC_ELIGIBILITY": {
+            "type": "decision",
+            "question": "Check the recorded P1 demographic eligibility.",
+            "condition": {
+                "fact": "p1DemographicEligible",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "MINIMAL_TRAUMA_KNOWN",
+            "no": "P1_ELIGIBILITY_NOT_MET"
+        },
+        "MINIMAL_TRAUMA_KNOWN": {
+            "type": "decision",
+            "question": "Did the fracture occur after a fall from standing height or less?",
+            "condition": {
+                "fact": "minimalTraumaFracture",
+                "operator": "in",
+                "value": [
+                    "yes",
+                    "no"
+                ]
+            },
+            "yes": "MINIMAL_TRAUMA_FRACTURE",
+            "no": "P1_ELIGIBILITY_REVIEW"
+        },
+        "MINIMAL_TRAUMA_FRACTURE": {
+            "type": "decision",
+            "question": "Did the fracture occur after a fall from standing height or less?",
+            "condition": {
+                "fact": "minimalTraumaFracture",
+                "operator": "equals",
+                "value": "yes"
+            },
+            "yes": "FRACTURE_SITE_KNOWN",
+            "no": "P1_ELIGIBILITY_NOT_MET"
+        },
+        "FRACTURE_SITE_KNOWN": {
+            "type": "decision",
+            "question": "Where was the fracture?",
+            "condition": {
+                "fact": "fractureSite",
+                "operator": "notIn",
+                "value": [
+                    "not_sure"
+                ]
+            },
+            "yes": "FRACTURE_SITE_ELIGIBLE",
+            "no": "P1_ELIGIBILITY_REVIEW"
+        },
+        "FRACTURE_SITE_ELIGIBLE": {
+            "type": "decision",
+            "question": "Where was the fracture?",
+            "condition": {
+                "fact": "fractureSite",
+                "operator": "notIn",
+                "value": [
+                    "hand",
+                    "foot",
+                    "face",
+                    "ankle"
+                ]
+            },
+            "yes": "RENAL_DYSFUNCTION",
+            "no": "P1_ELIGIBILITY_NOT_MET"
+        },
+        "P1_ELIGIBILITY_NOT_MET": {
+            "type": "review",
+            "code": "ELIGIBILITY_NOT_MET",
+            "message": "The patient does not meet the P1 entry criteria. Clinician review is required before choosing another pathway."
+        },
+        "P1_ELIGIBILITY_REVIEW": {
+            "type": "review",
+            "code": "ELIGIBILITY_INFORMATION_REQUIRED",
+            "message": "More information is required before the recommendation can be completed. Confirm the fracture mechanism and site."
+        },
+        "RENAL_DYSFUNCTION": {
+            "type": "decision",
+            "question": "Is the patient's eGFR 30 mL/min or higher?",
+            "condition": {
+                "fact": "eGFR",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "ON_OSTEOPOROSIS_TREATMENT",
+            "no": "LEAF_RENAL_REFERRAL"
+        },
+        "ON_OSTEOPOROSIS_TREATMENT": {
+            "type": "decision",
+            "question": "Is the patient currently on osteoporosis treatment?",
+            "condition": {
+                "fact": "osteoporosisTreatmentStatus",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "LEAF_REDIRECT_PATHWAY2",
+            "no": "RESIDENTIAL_OR_FRAILTY"
+        },
+        "RESIDENTIAL_OR_FRAILTY": {
+            "type": "decision",
+            "question": "Does the patient have any of these factors?",
+            "condition": {
+                "fact": "frailtyResidentialOrLimitedLifeExpectancy",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "LEAF_DENOSUMAB_GP",
+            "no": "ADHERENCE_CONCERN",
+            "helperText": "Lives in residential care, Clinical Frailty Scale score 6 or higher, or life expectancy less than 7 years."
+        },
+        "ADHERENCE_CONCERN": {
+            "type": "decision",
+            "question": "Is the patient able to adhere to their treatment plan? (Please answer the following questions.)",
+            "condition": {
+                "any": [
+                    {
+                        "fact": "knownPoorMedicationAdherence",
+                        "operator": "equals",
+                        "value": true
+                    },
+                    {
+                        "fact": "cognitiveImpairment",
+                        "operator": "equals",
+                        "value": true
+                    }
+                ]
+            },
+            "yes": "LEAF_ZOLEDRONIC_OR_RISEDRONATE_GP",
+            "no": "DXA_SCAN_AVAILABILITY"
+        },
+        "DXA_SCAN_AVAILABILITY": {
+            "type": "decision",
+            "question": "Is the patient able to undergo a BMD DXA scan? (Select Yes if the patient has had a scan within prior 2 years)",
+            "condition": {
+                "fact": "testAvailability",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "T_SCORE_CHECK",
+            "no": "LEAF_ZOLEDRONIC_OR_RISEDRONATE_OR_DENOSUMAB_GP"
+        },
+        "T_SCORE_CHECK": {
+            "type": "decision",
+            "question": "Is the T-score -2.5 or lower at any of these sites?",
+            "condition": {
+                "fact": "tScoreAtOrBelowMinus2_5AnySite",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "RECENT_MAJOR_FRACTURES",
+            "no": "LEAF_ZOLEDRONIC_OR_RISEDRONATE_OR_DENOSUMAB_GP",
+            "helperText": "Femoral neck, hip, or lumbar spine."
+        },
+        "RECENT_MAJOR_FRACTURES": {
+            "type": "decision",
+            "question": "Has the patient had a hip fracture, vertebral fracture, or fractures at 2 or more sites in last 24 months?",
+            "condition": {
+                "fact": "hipVertebralOrMultipleFracturesInLast24M",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "LEAF_OSTEOANABOLIC_REFERRAL",
+            "no": "HIGH_RISK_CHECK"
+        },
+        "HIGH_RISK_CHECK": {
+            "type": "decision",
+            "question": "Does the patient meet the very-high-fracture-risk criteria?",
+            "condition": {
+                "fact": "veryHighFractureRisk",
+                "operator": "equals",
+                "value": true
+            },
+            "yes": "LEAF_PRIVATELY_FUNDED_OSTEOANABOLIC_REFERRAL",
+            "no": "LEAF_ZOLEDRONIC_OR_RISEDRONATE_OR_DENOSUMAB_GP",
+            "helperText": "T-score ≤ -3.0, plus at least one of: recent fracture within 2 years, two or more fractures, relevant clinical risk factors, FRAX major risk ≥30%, or FRAX hip risk ≥4.5%."
+        },
+        "LEAF_RENAL_REFERRAL": {
+            "type": "leaf",
+            "actions": [
+                {
+                    "type": "referral",
+                    "destination": "SPECIALIST",
+                    "reason": "Antiresorptive therapy may increase risk of hypocalcaemia in presence of significant renal dysfunction."
+                }
+            ]
+        },
+        "LEAF_REDIRECT_PATHWAY2": {
+            "type": "leaf",
+            "actions": [
+                {
+                    "type": "pathwayRedirect",
+                    "targetPathway": "PATHWAY2"
+                }
+            ]
+        },
+        "LEAF_DENOSUMAB_GP": {
+            "type": "leaf",
+            "actions": [
+                {
+                    "type": "medication",
+                    "medication": "Denosumab",
+                    "dose": "60mg",
+                    "route": "subcut",
+                    "frequency": "6 monthly"
+                },
+                {
+                    "type": "followUp",
+                    "destination": "GP"
+                }
+            ]
+        },
+        "LEAF_ZOLEDRONIC_OR_RISEDRONATE_GP": {
+            "type": "leaf",
+            "actions": [
+                {
+                    "type": "treatmentOptions",
+                    "options": [
+                        {
+                            "type": "medication",
+                            "medication": "Zoledronic acid",
+                            "dose": "5mg",
+                            "route": "IV infusion",
+                            "frequency": "yearly",
+                            "duration": "3 years"
+                        },
+                        {
+                            "type": "medication",
+                            "medication": "Risedronate EC",
+                            "dose": "35mg",
+                            "route": "oral",
+                            "frequency": "weekly"
+                        }
+                    ]
+                },
+                {
+                    "type": "followUp",
+                    "destination": "GP"
+                },
+                {
+                    "type": "review",
+                    "instruction": "Reassess fracture risk after 5 years or after 3 zoledronic acid doses."
+                }
+            ]
+        },
+        "LEAF_ZOLEDRONIC_OR_RISEDRONATE_OR_DENOSUMAB_GP": {
+            "type": "leaf",
+            "actions": [
+                {
+                    "type": "treatmentOptions",
+                    "options": [
+                        {
+                            "type": "medication",
+                            "medication": "Zoledronic acid",
+                            "dose": "5mg",
+                            "route": "IV infusion",
+                            "frequency": "yearly",
+                            "duration": "3 years"
+                        },
+                        {
+                            "type": "medication",
+                            "medication": "Risedronate EC",
+                            "dose": "35mg",
+                            "route": "oral",
+                            "frequency": "weekly"
+                        },
+                        {
+                            "type": "medication",
+                            "medication": "Denosumab",
+                            "dose": "60mg",
+                            "route": "subcut",
+                            "frequency": "6 monthly"
+                        }
+                    ]
+                },
+                {
+                    "type": "followUp",
+                    "destination": "GP"
+                },
+                {
+                    "type": "review",
+                    "instruction": "Reassess fracture risk after 5 years or after 3 zoledronic acid doses."
+                },
+                {
+                    "type": "referral",
+                    "destination": "FRAGILE BONE CLINIC",
+                    "when": "If assistance needed in discontinuation after a maximum of 10 years of treatment."
+                }
+            ]
+        },
+        "LEAF_OSTEOANABOLIC_REFERRAL": {
+            "type": "leaf",
+            "actions": [
+                {
+                    "type": "referral",
+                    "destination": "SPECIALIST OR FRAGILE BONE CLINIC",
+                    "reason": "Consider commencement of osteoanabolic therapy."
+                }
+            ]
+        },
+        "LEAF_PRIVATELY_FUNDED_OSTEOANABOLIC_REFERRAL": {
+            "type": "leaf",
+            "actions": [
+                {
+                    "type": "referral",
+                    "destination": "SPECIALIST",
+                    "reason": "For privately funded osteoanabolic therapy."
+                }
+            ]
+        }
+    }
+}

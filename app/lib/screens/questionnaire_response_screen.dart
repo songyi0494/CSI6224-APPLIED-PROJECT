@@ -4,6 +4,7 @@ import '../data/app_repository.dart';
 import '../models/app_user.dart';
 import '../models/patient_questionnaire_catalog.dart';
 import '../models/questionnaire.dart';
+import '../widgets/global_sign_out.dart';
 
 class QuestionnaireResponseScreen extends StatefulWidget {
   const QuestionnaireResponseScreen({
@@ -11,6 +12,7 @@ class QuestionnaireResponseScreen extends StatefulWidget {
     required this.repository,
     required this.profileSexAtBirth,
     this.initialAnswers = const {},
+    this.onSignOut,
     super.key,
   });
 
@@ -18,6 +20,7 @@ class QuestionnaireResponseScreen extends StatefulWidget {
   final AppRepository repository;
   final String? profileSexAtBirth;
   final Map<String, Object?> initialAnswers;
+  final VoidCallback? onSignOut;
 
   @override
   State<QuestionnaireResponseScreen> createState() =>
@@ -81,7 +84,15 @@ class _QuestionnaireResponseScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Questionnaire')),
+      appBar: AppBar(
+        title: const Text('Questionnaire'),
+        actions: [
+          if (widget.onSignOut != null)
+            GlobalSignOutButton(onPressed: widget.onSignOut)
+          else
+            GlobalSignOut(repository: widget.repository),
+        ],
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -223,6 +234,14 @@ class _QuestionnaireResponseScreenState
 
   String _displayAnswer(QuestionnaireQuestion question) {
     final controller = _textControllers[question.mockUiAnswerKey];
+    if (question.fieldKey == 'dairyLessThan3Serves') {
+      final value = _answers[question.mockUiAnswerKey];
+      return value == null
+          ? 'Not provided'
+          : value == true
+          ? 'Yes'
+          : 'No';
+    }
     return controller?.text.trim() ??
         _answers[question.mockUiAnswerKey]?.toString() ??
         'Not provided';
@@ -336,6 +355,20 @@ class _QuestionInput extends StatelessWidget {
         );
         break;
       case QuestionType.checkbox:
+        if (question.fieldKey == 'dairyLessThan3Serves') {
+          final dairyValue = value;
+          input = DropdownButtonFormField<bool>(
+            initialValue: dairyValue is bool ? dairyValue : null,
+            decoration: InputDecoration(labelText: question.questionText),
+            items: const [
+              DropdownMenuItem(value: true, child: Text('Yes')),
+              DropdownMenuItem(value: false, child: Text('No')),
+            ],
+            onChanged: onChanged,
+            validator: (value) => value == null ? 'Required' : null,
+          );
+          break;
+        }
         input = FormField<bool>(
           initialValue: value as bool?,
           validator: (value) =>

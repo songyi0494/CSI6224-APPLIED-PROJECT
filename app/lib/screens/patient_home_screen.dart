@@ -29,7 +29,11 @@ class PatientHomeScreen extends StatelessWidget {
         ),
       );
 
-  Widget _questionnaireCard(BuildContext context, VoidCallback reload) {
+  Widget _questionnaireCard(
+    BuildContext context,
+    VoidCallback reload, {
+    required bool hasApprovedCarePlan,
+  }) {
     return FutureBuilder<_QuestionnaireHomeData>(
       future: _loadQuestionnaire(),
       builder: (context, snapshot) {
@@ -70,7 +74,7 @@ class PatientHomeScreen extends StatelessWidget {
                     Chip(
                       label: Text(
                         submitted
-                            ? 'Submitted'
+                            ? 'Completed'
                             : hasDraft
                             ? 'Draft'
                             : 'Not started',
@@ -81,10 +85,12 @@ class PatientHomeScreen extends StatelessWidget {
                 const SizedBox(height: 10),
                 Text(
                   submitted
-                      ? 'Your responses are waiting for clinician review.'
+                      ? hasApprovedCarePlan
+                            ? 'Your questionnaire has been reviewed.'
+                            : 'Your responses are waiting for clinician review.'
                       : hasDraft
                       ? 'Your saved responses are ready to resume and submit.'
-                      : 'Share the five requested bone health and lifestyle responses before clinical review.',
+                      : 'Complete your bone health questionnaire before clinical review.',
                 ),
                 if (data?.response?.submittedAt != null) ...[
                   const SizedBox(height: 6),
@@ -106,6 +112,7 @@ class PatientHomeScreen extends StatelessWidget {
                                     builder: (_) => QuestionnaireResponseScreen(
                                       form: data.form,
                                       repository: repository,
+                                      onSignOut: onSignOut,
                                       profileSexAtBirth: user.sexAtBirth,
                                       initialAnswers:
                                           data.response?.answers ?? const {},
@@ -118,6 +125,7 @@ class PatientHomeScreen extends StatelessWidget {
                               MaterialPageRoute<void>(
                                 builder: (_) => QuestionnaireSubmittedScreen(
                                   response: response,
+                                  onSignOut: onSignOut,
                                 ),
                               ),
                             );
@@ -153,12 +161,12 @@ class PatientHomeScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'OsteoCare Pathway',
+              'Your Bone Health Care',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
             const Text(
-              'Complete your questionnaire and view clinician-approved results.',
+              'Complete your questionnaire and view care plans approved by your clinician.',
             ),
             if (repository.isMock)
               const Padding(
@@ -167,7 +175,11 @@ class PatientHomeScreen extends StatelessWidget {
                   'Demo mode — synthetic records. Changes last for this app session.',
                 ),
               ),
-            _questionnaireCard(context, reload),
+            _questionnaireCard(
+              context,
+              reload,
+              hasApprovedCarePlan: items.isNotEmpty,
+            ),
             const SizedBox(height: 24),
             Text(
               'My Assessments',
@@ -185,23 +197,30 @@ class PatientHomeScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
+                          'Care plan ready',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
                           'Reviewed ${formatDate(result.reviewedAt)}',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Your clinician has approved this care recommendation.',
+                          'Your clinician has reviewed and approved your care plan.',
                         ),
                         const SizedBox(height: 12),
                         OutlinedButton(
                           onPressed: () => Navigator.push<void>(
                             context,
                             MaterialPageRoute<void>(
-                              builder: (_) =>
-                                  PatientRecommendationScreen(result: result),
+                              builder: (_) => PatientRecommendationScreen(
+                                result: result,
+                                onSignOut: onSignOut,
+                              ),
                             ),
                           ),
-                          child: const Text('View recommendation'),
+                          child: const Text('View care plan'),
                         ),
                       ],
                     ),

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../data/app_repository.dart';
 import '../models/clinical_case.dart';
 import '../models/live_pathway.dart';
+import '../widgets/global_sign_out.dart';
+import '../widgets/fracture_site_field.dart';
 
 class PathwayQuestionScreen extends StatefulWidget {
   const PathwayQuestionScreen({
@@ -157,12 +159,19 @@ class _PathwayQuestionScreenState extends State<PathwayQuestionScreen> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: Text('Edit ${definition.label}'),
-          content: definition.kind == PathwayFactKind.choice
+          content: key == 'fractureSite'
+              ? FractureSiteField(
+                  value: value as String?,
+                  onChanged: (next) => setDialogState(() => value = next),
+                )
+              : definition.kind == PathwayFactKind.choice
               ? DropdownButtonFormField<String>(
                   initialValue: definition.accepts(value)
                       ? value as String
                       : null,
-                  decoration: InputDecoration(labelText: definition.label),
+                  decoration: const InputDecoration(
+                    hintText: 'Select an answer',
+                  ),
                   items: definition.choices.entries
                       .map(
                         (entry) => DropdownMenuItem(
@@ -177,7 +186,7 @@ class _PathwayQuestionScreenState extends State<PathwayQuestionScreen> {
               ? DropdownButtonFormField<bool>(
                   initialValue: value as bool?,
                   decoration: const InputDecoration(
-                    labelText: 'Clinician-confirmed value',
+                    hintText: 'Select an answer',
                   ),
                   items: const [
                     DropdownMenuItem(value: true, child: Text('Yes')),
@@ -235,11 +244,18 @@ class _PathwayQuestionScreenState extends State<PathwayQuestionScreen> {
 
   Widget _control(String key) {
     final definition = pathwayFactRegistry[key]!;
+    if (key == 'fractureSite')
+      return FractureSiteField(
+        key: ValueKey('fracture-${_step?.nodeId}'),
+        value: _draft[key] as String?,
+        enabled: !_busy,
+        onChanged: (value) => setState(() => _draft[key] = value),
+      );
     if (definition.kind == PathwayFactKind.choice) {
       return DropdownButtonFormField<String>(
         key: ValueKey('$key-${_draft[key]}'),
         initialValue: _draft[key] as String?,
-        decoration: InputDecoration(labelText: definition.label),
+        decoration: const InputDecoration(hintText: 'Select an answer'),
         items: definition.choices.entries
             .map(
               (entry) =>
@@ -257,7 +273,7 @@ class _PathwayQuestionScreenState extends State<PathwayQuestionScreen> {
       return DropdownButtonFormField<bool>(
         key: ValueKey('$key-${_draft[key]}'),
         initialValue: _draft[key] as bool?,
-        decoration: InputDecoration(labelText: definition.label),
+        decoration: const InputDecoration(hintText: 'Select an answer'),
         items: const [
           DropdownMenuItem(value: true, child: Text('Yes')),
           DropdownMenuItem(value: false, child: Text('No')),
@@ -308,7 +324,10 @@ class _PathwayQuestionScreenState extends State<PathwayQuestionScreen> {
               )
               .toList();
     return Scaffold(
-      appBar: AppBar(title: const Text('Clinical pathway')),
+      appBar: AppBar(
+        title: const Text('Clinical pathway'),
+        actions: [GlobalSignOut(repository: widget.repository)],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),
@@ -326,15 +345,55 @@ class _PathwayQuestionScreenState extends State<PathwayQuestionScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            step.question,
+                            step.nodeId == 'ADHERENCE_CONCERN'
+                                ? "Is there concern about the patient's ability to follow the treatment plan?"
+                                : step.requiredFacts.contains('fractureSite')
+                                ? 'Where was the fracture?'
+                                : step.requiredFacts.contains(
+                                    'minimalTraumaFracture',
+                                  )
+                                ? 'Did the fracture occur after a fall from standing height or less?'
+                                : step.question,
                             style: Theme.of(context).textTheme.headlineSmall,
                           ),
+                          if (step.nodeId == 'ADHERENCE_CONCERN') ...[
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Examples include difficulty taking medicines as prescribed or cognitive impairment.',
+                            ),
+                          ] else if (step.requiredFacts.contains(
+                            'fractureSite',
+                          )) ...[
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Excluded sites: hand, foot, face, and ankle.',
+                            ),
+                          ] else if (step.helperText != null) ...[
+                            const SizedBox(height: 8),
+                            Text(step.helperText!),
+                          ],
                           const SizedBox(height: 8),
-                          const Text(
-                            'Confirm every required fact below. Patient-reported information is not automatically treated as clinician-confirmed.',
+                          if (step.requiredFacts.contains('eGFR')) ...[
+                            const Text(
+                              'This kidney-function check is part of the shared eligibility flow before Pathway 1 or Pathway 2 is selected.',
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          Text(
+                            'Source: Clinician confirmed',
+                            style: Theme.of(context).textTheme.bodySmall,
                           ),
+                          if (step.requiredFacts.contains('adherenceConcern') &&
+                              _draft['adherenceConcern'] == null) ...[
+                            const SizedBox(height: 8),
+                            const Text('More information is required.'),
+                          ],
                           const SizedBox(height: 20),
                           for (final key in step.requiredFacts) ...[
+                            if (step.requiredFacts.length > 1) ...[
+                              Text(pathwayFactRegistry[key]!.label),
+                              const SizedBox(height: 8),
+                            ],
                             _control(key),
                             const SizedBox(height: 16),
                           ],
@@ -378,13 +437,15 @@ class _PathwayQuestionScreenState extends State<PathwayQuestionScreen> {
                     ),
                   ),
                 const SizedBox(height: 12),
-                Row(
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  spacing: 12,
+                  runSpacing: 12,
                   children: [
                     OutlinedButton(
                       onPressed: _busy ? null : () => Navigator.pop(context),
                       child: const Text('Exit pathway'),
                     ),
-                    const Spacer(),
                     FilledButton.icon(
                       onPressed: _busy ? null : _next,
                       icon: _busy
@@ -421,28 +482,12 @@ class _PathwayQuestionScreenState extends State<PathwayQuestionScreen> {
     'FRACTURE_SITE_ELIGIBLE': ['fractureSite'],
     'RENAL_DYSFUNCTION': ['eGFR'],
     'ON_OSTEOPOROSIS_TREATMENT': ['osteoporosisTreatmentStatus'],
-    'RESIDENTIAL_OR_FRAILTY': [
-      'liveInResidentialCare',
-      'clinicalFrailtyScore',
-      'lifeExpectancy',
-    ],
-    'ADHERENCE_CONCERN': [
-      'knownPoorMedicationAdherence',
-      'cognitiveImpairment',
-    ],
+    'RESIDENTIAL_OR_FRAILTY': ['frailtyResidentialOrLimitedLifeExpectancy'],
+    'ADHERENCE_CONCERN': ['adherenceConcern'],
     'DXA_SCAN_AVAILABILITY': ['testAvailability'],
-    'T_SCORE_CHECK': ['femoralNeckTscore', 'hipTscore', 'lumbarSpineTscore'],
+    'T_SCORE_CHECK': ['tScoreAtOrBelowMinus2_5AnySite'],
     'RECENT_MAJOR_FRACTURES': ['hipVertebralOrMultipleFracturesInLast24M'],
-    'HIGH_RISK_CHECK': [
-      'femoralNeckTscore',
-      'hipTscore',
-      'lumbarSpineTscore',
-      'recentFractureWithin2Y',
-      'historyOf2orMoreFractures',
-      'clinicalRiskFactors',
-      'FRAX10YmajorOsteoporoticFractureRiskPercent',
-      'FRAX10YmajorHipFractureRiskPercent',
-    ],
+    'HIGH_RISK_CHECK': ['veryHighFractureRisk'],
     'ON_ANTIRESORPTIVE_TREATMENT': ['antiresorptiveTreatmentStatus'],
     'ANTIRESORPTIVE_TREATMENT_DURATION': [
       'antiresorptiveTreatmentOver12Months',

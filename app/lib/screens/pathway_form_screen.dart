@@ -243,9 +243,6 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
                     ),
                     const SizedBox(height: 16),
                   ]),
-                  _section('Living situation', [
-                    _boolean('liveInResidentialCare'),
-                  ]),
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),
@@ -294,8 +291,12 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
 
   static const _clinicianOwnedFactKeys = {
     'eGFR',
+    'frailtyResidentialOrLimitedLifeExpectancy',
+    'tScoreAtOrBelowMinus2_5AnySite',
+    'veryHighFractureRisk',
     'clinicalFrailtyScore',
     'lifeExpectancy',
+    'adherenceConcern',
     'knownPoorMedicationAdherence',
     'cognitiveImpairment',
     'testAvailable',

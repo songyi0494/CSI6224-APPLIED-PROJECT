@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/global_sign_out.dart';
 
 import '../data/app_repository.dart';
 import '../models/case_investigations.dart';
@@ -24,6 +25,7 @@ class _InvestigationsScreenState extends State<InvestigationsScreen> {
   late final TextEditingController _bodyWeight;
   late CaseInvestigations _current;
   bool _saving = false;
+  bool? _hypocalcaemia;
   String? _error;
 
   @override
@@ -48,6 +50,7 @@ class _InvestigationsScreenState extends State<InvestigationsScreen> {
     _vitaminD.text = _display(value.vitaminDLevel);
     _ionisedCalcium.text = _display(value.ionisedCalcium);
     _bodyWeight.text = _display(value.bodyWeightKg);
+    _hypocalcaemia = value.authoritativeHypocalcaemia;
   }
 
   String _display(double? value) {
@@ -59,7 +62,7 @@ class _InvestigationsScreenState extends State<InvestigationsScreen> {
 
   String? _validateNumber(String? value, {required bool allowZero}) {
     final raw = value?.trim() ?? '';
-    if (raw.isEmpty) return 'Required';
+    if (raw.isEmpty) return null;
     final parsed = double.tryParse(raw);
     if (parsed == null || !parsed.isFinite) return 'Enter a valid number';
     if (allowZero ? parsed < 0 : parsed <= 0) {
@@ -79,10 +82,11 @@ class _InvestigationsScreenState extends State<InvestigationsScreen> {
     try {
       final saved = await widget.repository.saveCaseInvestigations(
         caseId: _current.caseId,
-        vitaminDLevel: double.parse(_vitaminD.text.trim()),
-        ionisedCalcium: double.parse(_ionisedCalcium.text.trim()),
-        bodyWeightKg: double.parse(_bodyWeight.text.trim()),
+        vitaminDLevel: double.tryParse(_vitaminD.text.trim()),
+        ionisedCalcium: double.tryParse(_ionisedCalcium.text.trim()),
+        bodyWeightKg: double.tryParse(_bodyWeight.text.trim()),
         expectedRevision: _current.revision,
+        authoritativeHypocalcaemia: _hypocalcaemia,
       );
       if (!mounted) return;
       Navigator.pop(context, saved);
@@ -116,7 +120,10 @@ class _InvestigationsScreenState extends State<InvestigationsScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Investigations')),
+    appBar: AppBar(
+      title: const Text('Investigations'),
+      actions: [GlobalSignOut(repository: widget.repository)],
+    ),
     body: SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Center(
@@ -127,12 +134,15 @@ class _InvestigationsScreenState extends State<InvestigationsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  _current.requiresConfirmation
-                      ? 'Review and confirm the existing values before starting the pathway.'
-                      : 'Enter all three values. Units are fixed by the Songyi backend contract.',
+                const Text(
+                  'Review investigations before starting the pathway. Unavailable results may be left blank.',
                 ),
                 const SizedBox(height: 20),
+                Text(
+                  'Blood investigations',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
                 TextFormField(
                   key: const ValueKey('vitamin-d-input'),
                   controller: _vitaminD,
@@ -159,6 +169,32 @@ class _InvestigationsScreenState extends State<InvestigationsScreen> {
                   validator: (value) => _validateNumber(value, allowZero: true),
                 ),
                 const SizedBox(height: 16),
+                const Text('Does the patient have hypocalcaemia?'),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<bool>(
+                  initialValue: _hypocalcaemia,
+                  decoration: const InputDecoration(
+                    hintText: 'Select an answer',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: true, child: Text('Yes')),
+                    DropdownMenuItem(value: false, child: Text('No')),
+                  ],
+                  onChanged: _saving
+                      ? null
+                      : (value) => setState(() => _hypocalcaemia = value),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Source: Clinician confirmed. Leave blank if not yet confirmed.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Measurements',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
                 TextFormField(
                   key: const ValueKey('body-weight-input'),
                   controller: _bodyWeight,
@@ -171,6 +207,16 @@ class _InvestigationsScreenState extends State<InvestigationsScreen> {
                   ),
                   validator: (value) =>
                       _validateNumber(value, allowZero: false),
+                ),
+                const SizedBox(height: 20),
+                const Text('Other baseline investigations'),
+                const SizedBox(height: 8),
+                const Text(
+                  'Full blood count, kidney function and electrolytes, liver function, total calcium, phosphate and thyroid-stimulating hormone.',
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Review states are not recorded in this assessment. No extra values are required here.',
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 16),

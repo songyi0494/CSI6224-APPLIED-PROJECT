@@ -9,6 +9,7 @@ class PathwayFactDefinition {
     this.wholeNumber = false,
     this.allowNegative = false,
     this.choices = const {},
+    this.helperText,
   });
 
   final String key;
@@ -18,6 +19,7 @@ class PathwayFactDefinition {
   final bool wholeNumber;
   final bool allowNegative;
   final Map<String, String> choices;
+  final String? helperText;
 
   bool accepts(Object? value) => switch (kind) {
     PathwayFactKind.boolean => value is bool,
@@ -64,31 +66,32 @@ const pathwayFactRegistry = <String, PathwayFactDefinition>{
     label: 'Currently on osteoporosis treatment',
     kind: PathwayFactKind.boolean,
   ),
-  'liveInResidentialCare': PathwayFactDefinition(
-    key: 'liveInResidentialCare',
-    label: 'Lives in residential care',
+  'frailtyResidentialOrLimitedLifeExpectancy': PathwayFactDefinition(
+    key: 'frailtyResidentialOrLimitedLifeExpectancy',
+    label: 'Does the patient have any of these factors?',
+    helperText:
+        'Lives in residential care, Clinical Frailty Scale score 6 or higher, or life expectancy less than 7 years.',
     kind: PathwayFactKind.boolean,
   ),
-  'clinicalFrailtyScore': PathwayFactDefinition(
-    key: 'clinicalFrailtyScore',
-    label: 'Clinical Frailty Scale score',
-    kind: PathwayFactKind.number,
-    wholeNumber: true,
-  ),
-  'lifeExpectancy': PathwayFactDefinition(
-    key: 'lifeExpectancy',
-    label: 'Life expectancy',
-    kind: PathwayFactKind.number,
-    unit: 'years',
-  ),
-  'knownPoorMedicationAdherence': PathwayFactDefinition(
-    key: 'knownPoorMedicationAdherence',
-    label: 'Known poor medication adherence',
+  'adherenceConcern': PathwayFactDefinition(
+    key: 'adherenceConcern',
+    label:
+        "Is there concern about the patient's ability to follow the treatment plan?",
+    helperText:
+        'Examples include difficulty taking medicines as prescribed or cognitive impairment.',
     kind: PathwayFactKind.boolean,
   ),
-  'cognitiveImpairment': PathwayFactDefinition(
-    key: 'cognitiveImpairment',
-    label: 'Cognitive impairment affecting adherence',
+  'tScoreAtOrBelowMinus2_5AnySite': PathwayFactDefinition(
+    key: 'tScoreAtOrBelowMinus2_5AnySite',
+    label: 'Is the T-score -2.5 or lower at any of these sites?',
+    helperText: 'Femoral neck, hip, or lumbar spine.',
+    kind: PathwayFactKind.boolean,
+  ),
+  'veryHighFractureRisk': PathwayFactDefinition(
+    key: 'veryHighFractureRisk',
+    label: 'Does the patient meet the very-high-fracture-risk criteria?',
+    helperText:
+        'T-score ≤ -3.0, plus at least one of: recent fracture within 2 years, two or more fractures, relevant clinical risk factors, FRAX major risk ≥30%, or FRAX hip risk ≥4.5%.',
     kind: PathwayFactKind.boolean,
   ),
   'testAvailability': PathwayFactDefinition(
@@ -96,55 +99,10 @@ const pathwayFactRegistry = <String, PathwayFactDefinition>{
     label: 'BMD DXA available or completed within two years',
     kind: PathwayFactKind.boolean,
   ),
-  'femoralNeckTscore': PathwayFactDefinition(
-    key: 'femoralNeckTscore',
-    label: 'Femoral neck T-score',
-    kind: PathwayFactKind.number,
-    allowNegative: true,
-  ),
-  'hipTscore': PathwayFactDefinition(
-    key: 'hipTscore',
-    label: 'Hip T-score',
-    kind: PathwayFactKind.number,
-    allowNegative: true,
-  ),
-  'lumbarSpineTscore': PathwayFactDefinition(
-    key: 'lumbarSpineTscore',
-    label: 'Lumbar spine T-score',
-    kind: PathwayFactKind.number,
-    allowNegative: true,
-  ),
   'hipVertebralOrMultipleFracturesInLast24M': PathwayFactDefinition(
     key: 'hipVertebralOrMultipleFracturesInLast24M',
     label: 'Hip, vertebral, or multiple fractures in the last 24 months',
     kind: PathwayFactKind.boolean,
-  ),
-  'recentFractureWithin2Y': PathwayFactDefinition(
-    key: 'recentFractureWithin2Y',
-    label: 'Recent fracture within two years',
-    kind: PathwayFactKind.boolean,
-  ),
-  'historyOf2orMoreFractures': PathwayFactDefinition(
-    key: 'historyOf2orMoreFractures',
-    label: 'History of two or more fractures',
-    kind: PathwayFactKind.boolean,
-  ),
-  'clinicalRiskFactors': PathwayFactDefinition(
-    key: 'clinicalRiskFactors',
-    label: 'Additional clinical risk factors',
-    kind: PathwayFactKind.boolean,
-  ),
-  'FRAX10YmajorOsteoporoticFractureRiskPercent': PathwayFactDefinition(
-    key: 'FRAX10YmajorOsteoporoticFractureRiskPercent',
-    label: 'FRAX 10-year major osteoporotic fracture risk',
-    kind: PathwayFactKind.number,
-    unit: '%',
-  ),
-  'FRAX10YmajorHipFractureRiskPercent': PathwayFactDefinition(
-    key: 'FRAX10YmajorHipFractureRiskPercent',
-    label: 'FRAX 10-year hip fracture risk',
-    kind: PathwayFactKind.number,
-    unit: '%',
   ),
   'antiresorptiveTreatmentStatus': PathwayFactDefinition(
     key: 'antiresorptiveTreatmentStatus',
@@ -238,6 +196,7 @@ sealed class LivePathwayResult {
         pathwayId: json['pathwayId']?.toString() ?? '',
         nodeId: json['nodeId']?.toString() ?? '',
         question: json['question']?.toString() ?? '',
+        helperText: json['helperText']?.toString(),
         requiredFacts: List<String>.from(
           json['requiredFacts'] as List? ?? const [],
         ),
@@ -269,11 +228,13 @@ class PathwayQuestionStep extends LivePathwayResult {
     required super.pathwayId,
     required this.nodeId,
     required this.question,
+    this.helperText,
     required this.requiredFacts,
     required super.trace,
   });
   final String nodeId;
   final String question;
+  final String? helperText;
   final List<String> requiredFacts;
 }
 

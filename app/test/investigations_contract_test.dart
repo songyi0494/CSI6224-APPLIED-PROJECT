@@ -116,6 +116,7 @@ void main() {
       'p_ionised_calcium': 1.2,
       'p_body_weight_kg': 70.0,
       'p_expected_revision': 3,
+      'p_authoritative_hypocalcaemia': null,
     });
     expect(value.revision, 4);
     expect(value.isComplete, isTrue);

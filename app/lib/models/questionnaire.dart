@@ -24,7 +24,7 @@ enum QuestionType {
   );
 }
 
-/// One row from Songyi's global `questionnaire_questions` collection.
+/// One row from global `questionnaire_questions` collection.
 ///
 /// [id] is database row identity. [fieldKey] is stable semantic identity for
 /// protected system questions. They are deliberately not interchangeable.
@@ -59,9 +59,7 @@ class QuestionnaireQuestion {
 
   bool get isSystemQuestion => fieldKey != null;
 
-  /// The only production-safe answer key currently verified by Songyi's live
-  /// contract. A null result means BACKEND CONTRACT PENDING for that question.
-  String? get productionAnswerKey => fieldKey;
+  String get productionAnswerKey => fieldKey ?? id;
 
   /// Isolated local key for widget state and mock-only custom-question demos.
   /// This value must never be persisted by the production Supabase adapter.
@@ -103,10 +101,7 @@ class QuestionnaireQuestion {
   }
 }
 
-/// UI presentation for Songyi's one global ordered questionnaire.
-///
-/// [displayTitle] is presentation copy only; it is not a backend questionnaire
-/// title or a second questionnaire identity.
+/// UI global ordered questionnaire.
 class QuestionnaireForm {
   const QuestionnaireForm({
     required this.questions,

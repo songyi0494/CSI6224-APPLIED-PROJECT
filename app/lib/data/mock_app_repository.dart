@@ -1165,6 +1165,36 @@ class MockAppRepository implements AppRepository {
     ]);
   }
 
+  // Manage Questionnaire
+  @override
+  Future<QuestionnaireQuestion> createQuestionnaireQuestion({
+    required String questionText,
+    required QuestionType type,
+    required List<String> options,
+    required bool isRequired,
+  }) {
+    throw const AppException(
+      'Question management is only available in live mode.',
+    );
+  }
+
+  @override
+  Future<QuestionnaireQuestion> updateQuestionnaireQuestion(
+    QuestionnaireQuestion question,
+  ) {
+    throw const AppException(
+      'Question management is only available in live mode.',
+    );
+  }
+
+  @override
+  Future<void> deleteQuestionnaireQuestion(String questionId) {
+    throw const AppException(
+      'Question management is only available in live mode.',
+    );
+  }
+
+
   @override
   Future<QuestionnaireResponse> submitQuestionnaireResponse({
     required Map<String, Object?> answers,

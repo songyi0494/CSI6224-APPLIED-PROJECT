@@ -551,8 +551,121 @@ class SupabaseAppRepository implements AppRepository {
           );
         })
         .toList(growable: false);
-    return buildMaturePatientForm(questions);
+    return QuestionnaireForm(
+      displayTitle: 'Bone Health Questionnaire',
+      questions: questions);
   }, 'We could not load the questionnaire. Please try again.');
+
+  // create Questionnaire
+  @override
+  Future<QuestionnaireQuestion> createQuestionnaireQuestion({
+    required String questionText,
+    required QuestionType type,
+    required List<String> options,
+    required bool isRequired,
+  }) => _call(() async {
+    final userId = client.auth.currentUser?.id;
+
+    if (userId == null) {
+      throw const AppException('Please sign in again');
+    }
+
+    final lastRows = await client 
+      .from('questionnaire_questions')
+      .select('display_order')
+      .order('display_order', ascending: false)
+      .limit(1);
+
+    final nextDisplayOrder = (lastRows as List).isEmpty
+          ? 1
+          : (lastRows.first['display_order'] as num).toInt() + 1;
+
+      final row = await client
+          .from('questionnaire_questions')
+          .insert({
+            'question_text': questionText.trim(),
+            'question_type': type.databaseValue,
+            'options': type.requiresOptions? options : null,
+            'is_required': isRequired,
+            'display_order': nextDisplayOrder,
+            'field_key': null,
+            'created_by': userId,
+          })
+          .select()
+          .single();
+
+      final json = Map<String, dynamic>.from(row);
+
+      return QuestionnaireQuestion(
+        id: json['id'].toString(),
+        fieldKey: json['field_key'] as String?,
+        questionText: json['question_text'].toString(),
+        type: QuestionType.fromDatabaseValue(
+          json['question_type'].toString(),
+        ),
+        options: List<String>.from(
+          json['options'] as List? ?? const [],
+        ),
+        isRequired: json['is_required'] as bool? ?? true,
+        displayOrder: (json['display_order'] as num).toInt(),
+        createdBy: json['created_by'] as String?,
+      );
+    }, 'The question could not be added. Please try again.');
+  
+  // Update Questionnaire
+  @override
+  Future<QuestionnaireQuestion> updateQuestionnaireQuestion(
+    QuestionnaireQuestion question,
+  ) => _call(() async {
+      if (question.fieldKey != null) {
+        throw const AppException(
+          'System questions cannot be edited.',
+        );
+      }
+
+      final row = await client
+          .from('questionnaire_questions')
+          .update({
+            'question_text': question.questionText.trim(),
+            'question_type': question.type.databaseValue,
+            'options': question.type.requiresOptions
+                ? question.options
+                : null,
+            'is_required': question.isRequired,
+          })
+          .eq('id', question.id)
+          .isFilter('field_key', null)
+          .select()
+          .single();
+
+      final json = Map<String, dynamic>.from(row);
+
+      return QuestionnaireQuestion(
+        id: json['id'].toString(),
+        fieldKey: json['field_key'] as String?,
+        questionText: json['question_text'].toString(),
+        type: QuestionType.fromDatabaseValue(
+          json['question_type'].toString(),
+        ),
+        options: List<String>.from(
+          json['options'] as List? ?? const [],
+        ),
+        isRequired: json['is_required'] as bool? ?? true,
+        displayOrder: (json['display_order'] as num).toInt(),
+        createdBy: json['created_by'] as String?,
+      );
+    }, 'The question could not be updated. Please try again.');
+
+  // Delete Questionnaire
+  @override
+  Future<void> deleteQuestionnaireQuestion(String questionId) => _call(() async {
+      await client
+          .from('questionnaire_questions')
+          .delete()
+          .eq('id', questionId)
+          .isFilter('field_key', null);
+    }, 'The question could not be deleted. Please try again.');
+
   @override
   Future<QuestionnaireResponse?> fetchQuestionnaireResponse({
     required String patientId,
@@ -600,9 +713,43 @@ class SupabaseAppRepository implements AppRepository {
       if (profileSex != 'Female') {
         authoritativeAnswers.remove('postmenopausal');
       }
+      
+      final questionRows = await client
+        .from('questionnaire_questions')
+        .select(
+          'id, field_key, question_text, question_type, '
+          'options, is_required, display_order',
+        );
+
+      final questionsSnapshot = [
+        for (final question in questionRows)
+          if (authoritativeAnswers.containsKey(
+            (question['field_key'] as String?) ?? question['id'].toString(),
+          ))
+            {
+              'id': question['id'],
+              'answer_key':
+                  (question['field_key'] as String?) ??
+                  question['id'].toString(),
+              'question_text': question['question_text'],
+              'question_type': question['question_type'],
+              'options': question['options'],
+              'is_required': question['is_required'],
+              'display_order': question['display_order'],
+            },
+      ];
+
+      final allowedAnswerKeys = <String>{
+        ...productionQuestionnaireAnswerKeys,
+        for (final question in questionRows)
+          (question['field_key'] as String?) ?? question['id'].toString(),
+      };
+
       final productionAnswers = governedQuestionnaireAnswers(
         authoritativeAnswers,
+        allowedAnswerKeys: allowedAnswerKeys,
       );
+
       var row = await client
           .from('questionnaire_responses')
           .select()
@@ -614,6 +761,7 @@ class SupabaseAppRepository implements AppRepository {
             .insert({
               'patient_id': patientId,
               'answers': productionAnswers,
+              'questions_snapshot': questionsSnapshot,
               'status': 'draft',
             })
             .select()
@@ -626,7 +774,10 @@ class SupabaseAppRepository implements AppRepository {
         }
         row = await client
             .from('questionnaire_responses')
-            .update({'answers': productionAnswers})
+            .update({
+              'answers': productionAnswers,
+              'questions_snapshot': questionsSnapshot,
+            })
             .eq('id', row['id'])
             .eq('status', 'draft')
             .select()
@@ -650,16 +801,22 @@ class SupabaseAppRepository implements AppRepository {
   );
 
   static Map<String, Object?> governedQuestionnaireAnswers(
-    Map<String, Object?> answers,
-  ) {
+    Map<String, Object?> answers, {
+    Set<String>? allowedAnswerKeys,
+  }) {
+    final allowedKeys =
+        allowedAnswerKeys ?? productionQuestionnaireAnswerKeys;
+
     final unsupported = answers.keys
-        .where((key) => !productionQuestionnaireAnswerKeys.contains(key))
+        .where((key) => !allowedKeys.contains(key))
         .toList(growable: false);
+
     if (unsupported.isNotEmpty) {
       throw const AppException(
         'This questionnaire contains an answer that is not approved for production submission. Reload the questionnaire and try again.',
       );
     }
+
     return Map<String, Object?>.unmodifiable(answers);
   }
 

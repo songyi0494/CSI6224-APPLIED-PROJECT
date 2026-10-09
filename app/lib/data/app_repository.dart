@@ -94,9 +94,20 @@ abstract class AppRepository {
     required Map<String, Object?> answers,
   });
 
-  // BACKEND CONTRACT PENDING: these preserve the existing builder in mock/UI
-  // mode only. Songyi's live schema has no questionnaire header or publish
-  // state, and custom-question production answer keys remain unresolved.
+  Future<QuestionnaireQuestion> createQuestionnaireQuestion({
+    required String questionText,
+    required QuestionType type,
+    required List<String> options,
+    required bool isRequired,
+  });
+  
+  Future<QuestionnaireQuestion> updateQuestionnaireQuestion(
+    QuestionnaireQuestion question,
+  );
+
+  Future<void> deleteQuestionnaireQuestion(String questionId);
+
+  // Mockmode
   Future<List<MockQuestionnaireDraft>> fetchMockQuestionnaireDrafts();
   Future<MockQuestionnaireDraft> saveMockQuestionnaireDraft(
     MockQuestionnaireDraft questionnaire,

@@ -39,11 +39,15 @@ class ClinicianCaseScreen extends StatelessWidget {
     } on AppException {
       // Age fails closed without exposing DOB or blocking the rest of the case.
     }
+
+  final questionnaireForm = await repository.fetchQuestionnaireForm();
+
     return _ClinicianCaseData(
       assessment: assessment,
       response: await repository.fetchQuestionnaireResponse(
         patientId: assessment.patientId,
       ),
+      questionnaireForm: questionnaireForm,
       investigations: investigations,
       investigationsError: investigationsError,
       patientSummary: patientSummary,
@@ -191,12 +195,17 @@ class ClinicianCaseScreen extends StatelessWidget {
                       'Sex recorded at birth',
                       sexAtBirthText(assessment.patientSexAtBirth),
                     ),
-                    for (final item in _patientQuestionnaireItems)
-                      _answerRow(
-                        context,
-                        item.label,
-                        _questionnaireValue(assessment, response, item.key),
-                      ),
+                    for (final question in data.questionnaireForm.orderedQuestions)
+                      if (question.fieldKey != 'sex')
+                        _answerRow(
+                          context,
+                          question.questionText,
+                          _questionnaireValue(
+                            assessment,
+                            response,
+                            question.productionAnswerKey,
+                          ),
+                        ),
                     _answerRow(
                       context,
                       'Age',
@@ -286,18 +295,12 @@ class ClinicianCaseScreen extends StatelessWidget {
       ),
     ),
   );
-
-  static const _patientQuestionnaireItems = <({String key, String label})>[
-    (key: 'postmenopausal', label: 'Postmenopausal status'),
-    (key: 'dietaryDairyServings', label: 'Dietary dairy servings'),
-    (key: 'smoking', label: 'Smoking'),
-    (key: 'alcohol', label: 'Alcohol'),
-  ];
 }
 
 class _ClinicianCaseData {
   const _ClinicianCaseData({
     required this.assessment,
+    required this.questionnaireForm,
     this.response,
     this.investigations,
     this.investigationsError,
@@ -305,6 +308,7 @@ class _ClinicianCaseData {
   });
 
   final ClinicalCase assessment;
+  final QuestionnaireForm questionnaireForm;
   final QuestionnaireResponse? response;
   final CaseInvestigations? investigations;
   final String? investigationsError;

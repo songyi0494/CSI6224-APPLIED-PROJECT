@@ -8,6 +8,7 @@ import '../widgets/app_scaffold.dart';
 import '../widgets/async_panel.dart';
 import 'clinician_case_screen.dart';
 import 'questionnaire_builder_screen.dart';
+import 'manage_questionnaire_screen.dart';
 
 class ClinicianDashboardScreen extends StatelessWidget {
   const ClinicianDashboardScreen({
@@ -148,7 +149,26 @@ class ClinicianDashboardScreen extends StatelessWidget {
                     ),
                   ],
                 ),
+              )
+              else
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: () => Navigator.push<void>(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => ManageQuestionnaireScreen(
+                          repository: repository,
+                        ),
+                      ),
+                    ),
+                    child: const Text('Manage questionnaire'),
+                  ),
+                ),
               ),
+
             const SizedBox(height: 12),
             _queueSection(
               context,

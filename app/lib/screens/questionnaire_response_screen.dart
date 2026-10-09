@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../data/app_repository.dart';
 import '../models/app_user.dart';
-import '../models/patient_questionnaire_catalog.dart';
 import '../models/questionnaire.dart';
 
 class QuestionnaireResponseScreen extends StatefulWidget {
@@ -34,10 +33,7 @@ class _QuestionnaireResponseScreenState
   List<QuestionnaireQuestion> get _patientQuestions => widget
       .form
       .orderedQuestions
-      .where(
-        (question) =>
-            patientQuestionnaireVisibleKeys.contains(question.fieldKey),
-      )
+      .where((question) => question.fieldKey != 'sex')
       .toList(growable: false);
 
   bool get _profileIsFemale =>
@@ -129,9 +125,7 @@ class _QuestionnaireResponseScreenState
                           value: _answers[question.mockUiAnswerKey],
                           onChanged: (value) =>
                               _handleAnswerChanged(question, value),
-                          showPersistencePending:
-                              !widget.repository.isMock &&
-                              question.productionAnswerKey == null,
+                          showPersistencePending: false,
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -234,19 +228,31 @@ class _QuestionnaireResponseScreenState
     }
 
     final answers = <String, Object?>{};
+
     for (final question in _visibleQuestions) {
-      final productionKey = question.productionAnswerKey;
-      final answerKey = productionKey ?? question.mockUiAnswerKey;
+      final answerKey = question.productionAnswerKey;
+      Object? value;
+
       if (_textControllers.containsKey(question.mockUiAnswerKey)) {
-        final rawValue = _textControllers[question.mockUiAnswerKey]!.text
-            .trim();
-        answers[answerKey] =
-            question.type == QuestionType.numeric ||
+        final rawValue =
+            _textControllers[question.mockUiAnswerKey]!.text.trim();
+
+        if (rawValue.isEmpty) continue;
+
+        value = question.type == QuestionType.numeric ||
                 question.type == QuestionType.scale
             ? num.tryParse(rawValue)
             : rawValue;
       } else {
-        answers[answerKey] = _answers[question.mockUiAnswerKey];
+        value = _answers[question.mockUiAnswerKey];
+
+        if (value == null) continue;
+        if (value is String && value.trim().isEmpty) continue;
+        if (value is List && value.isEmpty) continue;
+      }
+
+      if (value != null) {
+        answers[answerKey] = value;
       }
     }
 

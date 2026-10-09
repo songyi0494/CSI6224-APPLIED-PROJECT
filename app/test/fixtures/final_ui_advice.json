@@ -1,0 +1,36 @@
+{
+  "source": {
+    "generatedAt": "2026-10-09T01:00:00Z",
+    "generatedBy": "00000000-0000-0000-0000-000000000003",
+    "investigationRevision": 1,
+    "questionnaireRevision": 1
+  },
+  "calcium": {
+    "totalCalcium": null,
+    "hypocalcaemia": false,
+    "ionisedCalcium": 1.2,
+    "recommendation": "Calcium supplement 600 mg daily",
+    "ionisedCalciumUnit": "mmol/L",
+    "supplementRequired": true
+  },
+  "protein": {
+    "age": 71,
+    "ageAsOf": "2026-10-09",
+    "olderPeople": true,
+    "bodyWeightKg": 70,
+    "bodyWeightUnit": "kg",
+    "recommendation": "Protein target: 1.0-1.2 g/kg bodyweight daily",
+    "maximumGramsPerDay": 84,
+    "minimumGramsPerDay": 70
+  },
+  "vitaminD": {
+    "unit": "nmol/L",
+    "level": 50,
+    "recommendation": "Cholecalciferol 25 microg daily ongoing",
+    "recheckBeforeTreatment": false
+  },
+  "lifestyleAdvice": [
+    "Ceasing smoking",
+    "Weight bearing exercises"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "source": {
+    "generatedAt": "2026-10-09T01:00:00Z",
+    "generatedBy": "00000000-0000-0000-0000-000000000003",
+    "adviceContractVersion": "songyi-advice-20261009",
+    "hypocalcaemiaRevision": 1,
+    "investigationRevision": 1,
+    "questionnaireRevision": 1
+  },
+  "calcium": {
+    "totalCalcium": null,
+    "ionisedCalcium": 1.2,
+    "recommendation": "Take calcium 600 mg once daily.",
+    "ionisedCalciumUnit": "mmol/L",
+    "supplementRequired": true,
+    "dairyLessThan3Serves": true,
+    "authoritativeHypocalcaemia": false
+  },
+  "protein": {
+    "age": 71,
+    "ageAsOf": "2026-10-09",
+    "olderPeople": true,
+    "bodyWeightKg": 70,
+    "bodyWeightUnit": "kg",
+    "recommendation": "Protein target: 1.0-1.2 g/kg bodyweight daily",
+    "maximumGramsPerDay": 84,
+    "minimumGramsPerDay": 70
+  },
+  "vitaminD": {
+    "unit": "nmol/L",
+    "level": 50,
+    "recommendation": "Take cholecalciferol 25 micrograms once daily. Continue treatment.",
+    "recheckBeforeTreatment": false
+  },
+  "lifestyleAdvice": [
+    "Stop smoking.",
+    "Do regular weight-bearing exercise."
+  ]
+}

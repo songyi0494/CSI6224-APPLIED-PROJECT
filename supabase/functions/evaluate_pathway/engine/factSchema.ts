@@ -1,0 +1,21 @@
+export const factSchema = {
+    "eGFR": { type: "boolean" },
+    "p1DemographicEligible": { type: "boolean" },
+    "minimalTraumaFracture": { type: "choice", values: ["yes", "no", "not_sure"] },
+    "fractureSite": { type: "choice", values: ["hip", "vertebral", "pelvis", "upper_arm", "forearm", "leg", "ribs", "hand", "foot", "face", "ankle", "not_sure"] },
+    "osteoporosisTreatmentStatus": { type: "boolean" },
+    "frailtyResidentialOrLimitedLifeExpectancy": { type: "boolean" },
+    "adherenceConcern": { type: "boolean" },
+    "tScoreAtOrBelowMinus2_5AnySite": { type: "boolean" },
+    "veryHighFractureRisk": { type: "boolean" },
+    "testAvailability": { type: "boolean" },
+    "hipVertebralOrMultipleFracturesInLast24M": { type: "boolean" },
+    "antiresorptiveTreatmentStatus": { type: "boolean" },
+    "antiresorptiveTreatmentOver12Months": { type: "boolean" },
+    "adheredToTheTreatment": { type: "boolean" },
+    "symptomaticFractureInLast12M": { type: "boolean" },
+    "multipleFractures": { type: "boolean" },
+    "lowBMD": { type: "boolean" },
+    "priorMIorStroke": { type: "boolean" },
+    "sequencingFromDenosumab": { type: "boolean" }
+} as const;

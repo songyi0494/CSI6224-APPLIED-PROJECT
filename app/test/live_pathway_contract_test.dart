@@ -1,0 +1,177 @@
+import 'package:csi6224_patient_feedback/data/app_repository.dart';
+import 'package:csi6224_patient_feedback/data/mock_app_repository.dart';
+import 'package:csi6224_patient_feedback/models/live_pathway.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+Future<({MockAppRepository repository, String caseId})> clinicianCase({
+  bool confirmEligibility = true,
+}) async {
+  final repository = MockAppRepository();
+  await repository.signIn(
+    email: 'patient@example.test',
+    password: 'DemoPass123!',
+  );
+  final assessment = (await repository.fetchClinicalCases()).single;
+  await repository.submitAssessment(
+    id: assessment.id,
+    revision: assessment.revision,
+    input: assessment.input,
+  );
+  await repository.signIn(
+    email: 'clinician@example.test',
+    password: 'DemoPass123!',
+  );
+  await repository.claimClinicalCase(assessment.id);
+  await repository.saveCaseInvestigations(
+    caseId: assessment.id,
+    vitaminDLevel: 55,
+    ionisedCalcium: 1.2,
+    bodyWeightKg: 70,
+    expectedRevision: 0,
+  );
+  if (confirmEligibility) {
+    await repository.savePathwayAnswer(
+      caseId: assessment.id,
+      fieldKey: 'minimalTraumaFracture',
+      value: 'yes',
+    );
+    await repository.savePathwayAnswer(
+      caseId: assessment.id,
+      fieldKey: 'fractureSite',
+      value: 'hip',
+    );
+  }
+  return (repository: repository, caseId: assessment.id);
+}
+
+void main() {
+  test('v12 response parser distinguishes question, complete and error', () {
+    final question = LivePathwayResult.fromJson({
+      'status': 'question',
+      'pathwayId': 'PATHWAY1',
+      'nodeId': 'RENAL_DYSFUNCTION',
+      'question': 'Prompt',
+      'requiredFacts': ['eGFR'],
+      'trace': [],
+    });
+    final complete = LivePathwayResult.fromJson({
+      'status': 'complete',
+      'pathwayId': 'PATHWAY1',
+      'actions': [],
+      'trace': [],
+    });
+    final error = LivePathwayResult.fromJson({
+      'status': 'error',
+      'pathwayId': 'PATHWAY1',
+      'error': 'Invalid rule graph',
+      'trace': [],
+    });
+    expect(question, isA<PathwayQuestionStep>());
+    expect(complete, isA<CompletedPathwayEvaluation>());
+    expect(error, isA<PathwayRuntimeError>());
+  });
+
+  test('typed registry covers audited numeric and boolean facts', () {
+    expect(pathwayFactRegistry['eGFR']!.kind, PathwayFactKind.boolean);
+    expect(
+      pathwayFactRegistry['tScoreAtOrBelowMinus2_5AnySite']!.kind,
+      PathwayFactKind.boolean,
+    );
+    expect(pathwayFactRegistry.containsKey('hipTscore'), isFalse);
+    expect(
+      pathwayFactRegistry['priorMIorStroke']!.kind,
+      PathwayFactKind.boolean,
+    );
+    expect(pathwayFactRegistry, hasLength(18));
+  });
+
+  test('mock follows P1 and returns a multi-fact node', () async {
+    final setup = await clinicianCase();
+    expect(
+      await setup.repository.evaluatePathway(caseId: setup.caseId),
+      isA<PathwayQuestionStep>(),
+    );
+    await setup.repository.savePathwayAnswer(
+      caseId: setup.caseId,
+      fieldKey: 'eGFR',
+      value: true,
+    );
+    await setup.repository.savePathwayAnswer(
+      caseId: setup.caseId,
+      fieldKey: 'osteoporosisTreatmentStatus',
+      value: false,
+    );
+    final result =
+        await setup.repository.evaluatePathway(caseId: setup.caseId)
+            as PathwayQuestionStep;
+    expect(result.nodeId, 'RESIDENTIAL_OR_FRAILTY');
+    expect(result.requiredFacts, ['frailtyResidentialOrLimitedLifeExpectancy']);
+  });
+
+  test('P1 redirects to P2 without manual routing', () async {
+    final setup = await clinicianCase();
+    await setup.repository.evaluatePathway(caseId: setup.caseId);
+    await setup.repository.savePathwayAnswer(
+      caseId: setup.caseId,
+      fieldKey: 'eGFR',
+      value: true,
+    );
+    await setup.repository.savePathwayAnswer(
+      caseId: setup.caseId,
+      fieldKey: 'osteoporosisTreatmentStatus',
+      value: true,
+    );
+    final result =
+        await setup.repository.evaluatePathway(caseId: setup.caseId)
+            as PathwayQuestionStep;
+    expect(result.pathwayId, 'PATHWAY2');
+    expect(result.requiredFacts, ['antiresorptiveTreatmentStatus']);
+  });
+
+  test(
+    'previous answer edit re-evaluates and completion locks facts',
+    () async {
+      final setup = await clinicianCase();
+      await setup.repository.evaluatePathway(caseId: setup.caseId);
+      await setup.repository.savePathwayAnswer(
+        caseId: setup.caseId,
+        fieldKey: 'eGFR',
+        value: true,
+      );
+      expect(
+        await setup.repository.evaluatePathway(caseId: setup.caseId),
+        isA<PathwayQuestionStep>(),
+      );
+      await setup.repository.savePathwayAnswer(
+        caseId: setup.caseId,
+        fieldKey: 'eGFR',
+        value: false,
+      );
+      expect(
+        await setup.repository.evaluatePathway(caseId: setup.caseId),
+        isA<CompletedPathwayEvaluation>(),
+      );
+      expect(
+        () => setup.repository.savePathwayAnswer(
+          caseId: setup.caseId,
+          fieldKey: 'eGFR',
+          value: true,
+        ),
+        throwsA(isA<AppException>()),
+      );
+    },
+  );
+
+  test('answer persistence rejects string JSON values', () async {
+    final setup = await clinicianCase();
+    await setup.repository.evaluatePathway(caseId: setup.caseId);
+    expect(
+      () => setup.repository.savePathwayAnswer(
+        caseId: setup.caseId,
+        fieldKey: 'eGFR',
+        value: '54',
+      ),
+      throwsA(isA<AppException>()),
+    );
+  });
+}

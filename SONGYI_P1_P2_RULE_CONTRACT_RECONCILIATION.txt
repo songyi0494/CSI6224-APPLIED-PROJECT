@@ -1,0 +1,119 @@
+SONGYI P1 AND P2 RULE CONTRACT RECONCILIATION
+Completed locally on 9 October 2026, Australia/Perth
+
+1. REPOSITORY / BRANCH / HEAD
+Repository: https://github.com/songyi0494/CSI6224-APPLIED-PROJECT.git
+Clean starting worktree: C:\Users\xiaom\Desktop\applied projext\Songyi-contract-reconciliation
+Branch: db_pathway_integration_boolean
+HEAD and verified remote starting SHA: ac8a07197829cca376717bdd5f88b315563408b9
+Starting git status: clean.
+Current status: local uncommitted changes listed below. No commit, push or deployment was performed.
+Historical checkout remains on implementation/osteocare-pathway at 381d18487d58fad9bb254eeec6a7ad8c7455b369, with its existing 41 dirty-status entries. Its source files were not edited.
+
+2. PRE-MUTATION CONTRACT AUDIT
+eGFR: Active P1 JSON already compared eGFR to Boolean true, but Flutter, factSchema, compatibility models and mock routing required numeric values. Trace labels described eGFR >30. No consistent active contract existed.
+P1 eligibility: Active root was RENAL_DYSFUNCTION. It did not consume structured fracture mechanism, separate excluded sites or demographic eligibility. The patient catalog's Leg, ankle or foot answer and fracture free text cannot establish clinician-confirmed eligibility.
+Demographic producers: profiles.gender is the existing sex-recorded-at-birth source; age derives from profiles.date_of_birth. Submitted questionnaire_responses.answers.postmenopausal is the existing accepted menopause source. The protected context originally exposed none of these to the rule engine.
+Persistence: Clinician answers use assigned-clinician save_pathway_answer and JSONB clinician_facts. The existing JSONB contract supports discrete string choices without a table or column change. Existing downstream answer invalidation is retained.
+P2 duration: Existing Boolean antiresorptiveTreatmentDuration meant 12 months or longer. Relabelling existing true answers as >12 months would reinterpret historical evidence.
+Remaining numeric fields: Frailty, life expectancy, three T-scores and two FRAX values remain number-typed while active JSON compares them to true. These repairs were expressly outside this task's authority.
+
+3. FILES CHANGED
+Flutter source:
+app/lib/data/mock_app_repository.dart
+app/lib/data/supabase_app_repository.dart
+app/lib/models/clinical_input.dart
+app/lib/models/live_pathway.dart
+app/lib/models/pathway1_clinician_input.dart
+app/lib/models/pathway_evaluation.dart
+app/lib/screens/pathway_question_screen.dart
+app/lib/utils/clinical_trace_presentation.dart
+app/lib/utils/live_trace_labels.dart
+
+Flutter tests:
+app/test/live_pathway_contract_test.dart
+app/test/result_display_v2_test.dart
+app/test/rule_contract_reconciliation_test.dart
+app/test/widget_test.dart
+app/test/workflow_test.dart
+
+Backend source:
+supabase/functions/evaluate_pathway/engine/evaluateCasePathway.ts
+supabase/functions/evaluate_pathway/engine/evaluateDecisionTree.ts
+supabase/functions/evaluate_pathway/engine/factSchema.ts
+supabase/functions/evaluate_pathway/engine/validateFacts.ts
+supabase/functions/evaluate_pathway/index.ts
+supabase/functions/evaluate_pathway/rules/pathway_1.json
+supabase/functions/evaluate_pathway/rules/pathway_2.json
+supabase/functions/evaluate_pathway/types/condition.ts
+supabase/functions/evaluate_pathway/types/decisionTree.ts
+supabase/migrations/202610080001_p1_p2_contract_reconciliation.sql
+
+Backend tests and handover:
+tests/rule_contract.test.mjs
+tests/rule_contract_sql.test.mjs
+SONGYI_P1_P2_RULE_CONTRACT_RECONCILIATION.txt
+
+4. eGFR BOOLEAN RECONCILIATION
+Canonical eGFR is now Boolean in active Flutter metadata, both input models, production and mock answer validation, the fact schema, active rule routing, persistence checks and current-contract trace labels.
+true = eGFR >=30 mL/min. false = eGFR <30 mL/min.
+The clinician sees eGFR >=30 mL/min? with Yes/No, not a numeric text box. The server question uses the authorised full sentence.
+Historical numeric values are not converted to threshold confirmations. Evaluation removes a historical number only from its temporary input map and asks for fresh clinician confirmation. Stored historical values are not rewritten by the migration. Input models return missing for an old numeric value.
+Older numeric trace snapshots remain readable as historical evidence; they do not create a new current-contract fact.
+
+5. P1 ELIGIBILITY IMPLEMENTATION
+New active root P1_DEMOGRAPHIC_ELIGIBILITY uses a server-derived Boolean based on the protected source context. It is not an editable clinician answer. Client/clinician flags cannot override the protected source.
+Accepted entry demographics: postmenopausal woman OR man older than 50. Male age 50 does not qualify. Missing profile sex, missing male age or missing/uncertain female menopause stops for information. Male menopause is not fabricated.
+Structured minimalTraumaFracture choices: yes, no, not_sure. The active question is Did the fracture occur after a fall from standing height or less? Patient free text is not consumed as confirmation.
+Structured fractureSite choices include separate hand, foot, face and ankle values and non-excluded sites such as hip, vertebral and leg. The old combined patient answer is neither split nor inferred.
+Missing mechanism/site returns a question. Explicit Not sure returns an information-required review error. No or an excluded site returns an eligibility-not-met review error. These states contain no treatment actions and cannot save a completed recommendation. The Flutter case remains in progress so the clinician can correct an answer; the task does not create a new clinical-case status.
+The new migration extends the protected context with an eligibility source snapshot, preserves actor/assignment/investigation checks, and preserves downstream invalidation. Current source changes reject stale evaluation saves and approvals. Withhold retains its existing clinician-controlled behavior.
+
+6. P2 STRICT >12-MONTH CORRECTION
+New canonical key: antiresorptiveTreatmentOver12Months.
+true means current antiresorptive treatment for more than 12 months; false means 12 months or less.
+Question: Has the patient used the current antiresorptive treatment for more than 12 months?
+Flutter presents Yes/No. The rule consumes the new key. False takes the existing standard antiresorptive-options branch; true continues to adherence.
+Old antiresorptiveTreatmentDuration answers are ignored during current evaluation, and attempts to save the retired key are rejected. Existing >=12 answers are not silently reinterpreted. No raw duration, medicine-history free text or patient report is converted into the clinician threshold confirmation.
+Trace snapshots carry the contract version. Old saved duration traces are identified as historical, rather than relabelled with the new strict boundary.
+
+7. TESTS AND EXACT RESULTS
+Backend: 41/41 passed, zero skipped. These comprise 25 engine/contract tests and 16 PostgreSQL-function tests using an isolated in-memory PGlite database. SQL tests execute the new migration against a minimal representative schema and stubbed local authentication helpers; this is not a deployed Supabase/RLS smoke test.
+Coverage includes Boolean eGFR true/false, numeric rejection/reconfirmation, minimal trauma Yes/No/Not sure/missing, each excluded site, valid hip/spine/leg sites, missing/uncertain site, source demographics, ages 49/50/51, forged demographic flags, strict duration boundary and historical-answer isolation, source currentness at save/approval, assignment, Withhold and downstream invalidation.
+Duration boundary test cases provide the clinician threshold answer for 12 months (false), 12.01 months (true) and 13 months (true). The engine intentionally does not accept or derive raw months.
+Focused Flutter: 55/55 passed, covering the reconciliation tests, live pathway contract, result display, widgets, workflow and historical trace presentation. Widget checks prove that structured eligibility appears before the Boolean eGFR control and that Not sure remains recorded while showing an information-required message.
+Full Flutter: 100 passed, 2 failed, 102 total. The two failures are the existing clinical_case_load_test expectations for old table reads instead of get_clinician_case_list RPC. Both failures were reproduced against untouched HEAD using an exported baseline app. This task did not modify that test or the case-list implementation.
+Analyzer: zero errors; one warning and 35 informational diagnostics, 36 total. Untouched HEAD also reports 36 diagnostics. Analyzer exits nonzero for the retained baseline warning/infos; it is not reported as a clean analyzer PASS.
+Strict TypeScript check of the case evaluator and its engine imports: passed.
+git diff --check: passed.
+Scope comparison: all existing P1/P2 decision/action nodes outside the authorised changes are unchanged. Dashboard, recommendation-review layout and current patient-advice producer are unchanged, verified with line endings normalised.
+
+Reproduction commands:
+Node v24:
+  node --test tests/rule_contract.test.mjs tests/rule_contract_sql.test.mjs
+Set SONGYI_PGLITE_MODULE to the file URL for a test-only @electric-sql/pglite install before running SQL tests. The dependency used here is outside the checkout at Songyi-contract-test-tools/node_modules.
+TypeScript:
+  tsc --noEmit --strict --target es2022 --module nodenext --allowImportingTsExtensions supabase/functions/evaluate_pathway/engine/evaluateCasePathway.ts
+Flutter, from app:
+  flutter test --no-pub
+  flutter analyze --no-pub
+On this host the direct Flutter tool snapshot with --suppress-analytics was used.
+Final full-suite and analyzer logs are saved outside the checkout in Songyi-contract-test-tools/flutter-final-results.txt and analyzer-final-results.txt; focused results are in flutter-contract-results.txt.
+
+8. REMAINING NUMERIC/BOOLEAN CONTRACT GAPS
+REMAINING_RULE_TYPE_GAP:
+- clinicalFrailtyScore: numeric Flutter/schema; target P1 compares to Boolean true.
+- lifeExpectancy: numeric Flutter/schema; target P1 compares to Boolean true.
+- femoralNeckTscore, hipTscore, lumbarSpineTscore: numeric Flutter/schema; target P1 comparisons use Boolean true, including the high-risk node.
+- FRAX10YmajorOsteoporoticFractureRiskPercent and FRAX10YmajorHipFractureRiskPercent: numeric Flutter/schema; target P1 compares to Boolean true.
+These values, types and rule conditions were not converted or repaired. Numeric values cannot satisfy strict equality with true. The mock's separate numeric treatment checks also remain outside this reconciliation. This local contract PASS does not certify the remaining P1 clinical decisions or readiness for live deployment.
+
+9. UI REDESIGN WAS NOT PERFORMED
+No Dashboard redesign, Why This Result layout redesign, Current Patient Advice implementation, Safety and Discussion restructuring, general STE cleanup, P3/P4/P5 implementation or unrelated backend refactor was performed. Only controls and trace text directly affected by this contract changed.
+No tables/columns or historical records were migrated. The migration replaces bounded functions and adds one private source-context helper; existing clinician/assignment checks remain.
+No live deployment, live patient action, patient release, commit, push or PR creation occurred.
+After local deployment preparation, older pending evaluated cases without the current contract snapshot fail closed at approval and need a separately governed fresh evaluation/reopen process. Historical approved records are not rewritten. The general evaluated-case reopen lifecycle is outside this task.
+
+10. FINAL DISPOSITION
+PASS — SONGYI P1/P2 RULE CONTRACT RECONCILIATION COMPLETE
+This disposition covers only the three frozen decisions and their required local tests. The listed remaining rule/type gaps, baseline test failures and undeployed runtime are separate unresolved items. The later clinician UI/advice revision has not resumed.

@@ -343,9 +343,9 @@ QuestionnaireForm buildMaturePatientForm(List<QuestionnaireQuestion> system) {
       ),
       systemQuestion(
         'dietaryDairyServings',
-        'How many servings of dairy do you have per day?',
-        QuestionType.numeric,
-        const [],
+        'Do you have fewer than 3 serves of dairy per day?',
+        QuestionType.singleChoice,
+        const ['Yes', 'No'],
         54,
         section: 'Lifestyle',
       ),

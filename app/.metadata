@@ -1,0 +1,21 @@
+version:
+  revision: "manual-scaffold"
+  channel: "stable"
+
+project_type: app
+
+migration:
+  platforms:
+    - platform: root
+      create_revision: manual-scaffold
+      base_revision: manual-scaffold
+    - platform: android
+      create_revision: manual-scaffold
+      base_revision: manual-scaffold
+    - platform: web
+      create_revision: manual-scaffold
+      base_revision: manual-scaffold
+
+  unmanaged_files:
+    - "lib/main.dart"
+    - "android/app/src/main/kotlin/au/edu/ecu/csi6224/pathways/MainActivity.kt"

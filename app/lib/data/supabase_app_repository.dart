@@ -185,10 +185,11 @@ class SupabaseAppRepository implements AppRepository {
   }, signInServiceFailureMessage);
   @override
   Future<void> signUp(RegistrationInput input) => _call(() async {
-    if (input.role == UserRole.admin)
+    if (input.role == UserRole.admin) {
       throw const AppException(
         'This account type is not available for registration.',
       );
+    }
     await client.auth.signUp(
       email: input.email,
       password: input.password,
@@ -541,11 +542,19 @@ class SupabaseAppRepository implements AppRepository {
             id: json['id'].toString(),
             fieldKey: json['field_key'] as String?,
             questionText: json['question_text'].toString(),
+            visibleWhenKey: json['field_key'] == 'excludedFractureSite'
+                ? 'minimalTraumaFracture'
+                : null,
+            visibleWhenValues: json['field_key'] == 'excludedFractureSite'
+                ? const ['Yes']
+                : const [],
             type: QuestionType.fromDatabaseValue(
               json['question_type'].toString(),
             ),
             options: List<String>.from(json['options'] as List? ?? const []),
-            isRequired: json['is_required'] as bool? ?? true,
+            isRequired: json['field_key'] == 'excludedFractureSite'
+                ? true
+                : (json['is_required'] as bool? ?? true),
             displayOrder: (json['display_order'] as num).toInt(),
             createdBy: json['created_by'] as String?,
           );
@@ -667,6 +676,17 @@ class SupabaseAppRepository implements AppRepository {
     }, 'The question could not be deleted. Please try again.');
 
   @override
+  Future<bool> hasPatientClinicalCase(String patientId) => _call(() async {
+    final rows = await client
+        .from('clinical_cases')
+        .select('id')
+        .eq('patient_id', patientId)
+        .limit(1);
+
+    return rows.isNotEmpty;
+  }, 'We could not check your assessment status.');
+
+  @override
   Future<QuestionnaireResponse?> fetchQuestionnaireResponse({
     required String patientId,
   }) => _call(() async {
@@ -783,9 +803,13 @@ class SupabaseAppRepository implements AppRepository {
             .select()
             .single();
       }
-      await client.rpc(
+      final caseId = await client.rpc(
         'submit_questionnaire_response',
         params: {'p_response_id': row['id']},
+      );
+
+      debugPrint(
+        'Patient Identification: ${caseId == null ? 'Not eligible' : 'Eligible'}',
       );
       final submitted = await client
           .from('questionnaire_responses')
@@ -795,6 +819,7 @@ class SupabaseAppRepository implements AppRepository {
       return _questionnaireResponse(
         submitted,
         sessionAnswers: productionAnswers,
+        pathwayEligible: caseId != null,
       );
     },
     'Your questionnaire could not be submitted. Your answers remain on this screen so you can retry.',
@@ -823,7 +848,9 @@ class SupabaseAppRepository implements AppRepository {
   QuestionnaireResponse _questionnaireResponse(
     Map<String, dynamic> row, {
     Map<String, Object?>? sessionAnswers,
+    bool? pathwayEligible,
   }) => QuestionnaireResponse(
+    pathwayEligible: pathwayEligible,
     id: row['id'].toString(),
     patientId: row['patient_id'].toString(),
     status: row['status'] == 'submitted'

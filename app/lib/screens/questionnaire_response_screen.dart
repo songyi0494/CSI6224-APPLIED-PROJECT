@@ -228,7 +228,6 @@ class _QuestionnaireResponseScreenState
     }
 
     final answers = <String, Object?>{};
-
     for (final question in _visibleQuestions) {
       final answerKey = question.productionAnswerKey;
       Object? value;
@@ -264,9 +263,30 @@ class _QuestionnaireResponseScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Questionnaire submitted.')));
+      if (response.pathwayEligible == false) {
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Pathway Eligibility'),
+            content: const Text(
+              'You do not meet the entry criteria for this osteoporosis '
+              'treatment pathway. Please consult your healthcare '
+              'professional for further advice.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Questionnaire submitted.')),
+        );
+      }
+      if (!mounted) return;
       Navigator.of(context).pop(response);
     } on AppException catch (error) {
       if (mounted) {

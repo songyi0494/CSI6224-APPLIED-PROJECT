@@ -22,12 +22,13 @@ class PatientHomeScreen extends StatelessWidget {
   final VoidCallback onSignOut;
 
   Future<_QuestionnaireHomeData> _loadQuestionnaire() async =>
-      _QuestionnaireHomeData(
-        form: await repository.fetchQuestionnaireForm(),
-        response: await repository.fetchQuestionnaireResponse(
-          patientId: user.id,
-        ),
-      );
+    _QuestionnaireHomeData(
+      form: await repository.fetchQuestionnaireForm(),
+      response: await repository.fetchQuestionnaireResponse(
+        patientId: user.id,
+      ),
+      hasClinicalCase: await repository.hasPatientClinicalCase(user.id),
+    );
 
   Widget _questionnaireCard(BuildContext context, VoidCallback reload) {
     return FutureBuilder<_QuestionnaireHomeData>(
@@ -81,10 +82,14 @@ class PatientHomeScreen extends StatelessWidget {
                 const SizedBox(height: 10),
                 Text(
                   submitted
-                      ? 'Your responses are waiting for clinician review.'
+                      ? (data!.hasClinicalCase
+                          ? 'Your responses are waiting for clinician review.'
+                          : 'You do not meet the entry criteria for this osteoporosis '
+                              'treatment pathway. Please consult your healthcare '
+                              'professional for further advice.')
                       : hasDraft
-                      ? 'Your saved responses are ready to resume and submit.'
-                      : 'Share the five requested bone health and lifestyle responses before clinical review.',
+                          ? 'Your saved responses are ready to resume and submit.'
+                          : 'Complete your bone health questionnaire before clinical review.',
                 ),
                 if (data?.response?.submittedAt != null) ...[
                   const SizedBox(height: 6),
@@ -216,8 +221,13 @@ class PatientHomeScreen extends StatelessWidget {
 }
 
 class _QuestionnaireHomeData {
-  const _QuestionnaireHomeData({required this.form, required this.response});
+  const _QuestionnaireHomeData({
+    required this.form,
+    required this.response,
+    required this.hasClinicalCase,
+  });
 
   final QuestionnaireForm form;
   final QuestionnaireResponse? response;
+  final bool hasClinicalCase;
 }

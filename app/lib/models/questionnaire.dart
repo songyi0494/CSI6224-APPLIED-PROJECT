@@ -128,6 +128,7 @@ class QuestionnaireResponse {
     required this.revision,
     required this.answers,
     this.submittedAt,
+    this.pathwayEligible,
   });
 
   final String id;
@@ -136,6 +137,7 @@ class QuestionnaireResponse {
   final int revision;
   final DateTime? submittedAt;
   final Map<String, Object?> answers;
+  final bool? pathwayEligible;
 }
 
 /// Mock/UI-only container used to preserve the existing clinician builder.

@@ -84,6 +84,7 @@ abstract class AppRepository {
   Future<QuestionnaireResponse?> fetchQuestionnaireResponse({
     required String patientId,
   });
+  Future<bool> hasPatientClinicalCase(String patientId);
   Future<LivePathwayResult> evaluatePathway({required String caseId});
   Future<void> savePathwayAnswer({
     required String caseId,

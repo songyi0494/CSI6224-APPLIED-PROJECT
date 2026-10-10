@@ -1194,6 +1194,12 @@ class MockAppRepository implements AppRepository {
     );
   }
 
+  @override
+  Future<bool> hasPatientClinicalCase(String patientId) async {
+    return (await fetchClinicalCases()).any(
+      (clinicalCase) => clinicalCase.patientId == patientId,
+    );
+  }
 
   @override
   Future<QuestionnaireResponse> submitQuestionnaireResponse({

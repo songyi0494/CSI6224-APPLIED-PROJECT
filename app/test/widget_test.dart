@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:csi6224_patient_feedback/app.dart';
 import 'package:csi6224_patient_feedback/data/mock_app_repository.dart';
 import 'package:csi6224_patient_feedback/models/clinical_case.dart';
@@ -120,13 +121,21 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Patient overview'), findsOneWidget);
       expect(find.text('Avery Martin'), findsOneWidget);
+      expect(find.text('Clinical Summary'), findsOneWidget);
       expect(find.text('Patient-Reported Questionnaire'), findsOneWidget);
+      // The long patient report is closed by default but remains available.
+      expect(find.text('Are you postmenopausal?'), findsNothing);
+      await tapVisible(
+        tester,
+        find.text('Patient-Reported Questionnaire'),
+        find.byType(SingleChildScrollView),
+      );
       for (final label in const [
         'Sex recorded at birth',
-        'Postmenopausal status',
-        'Dietary dairy servings',
-        'Smoking',
-        'Alcohol',
+        'Are you postmenopausal?',
+        'How many servings of dairy do you have per day?',
+        'Do you currently smoke?',
+        'Do you currently drink alcohol?',
         'Age',
       ]) {
         expect(find.text(label), findsOneWidget);
@@ -221,7 +230,9 @@ void main() {
     expect(find.text('Clinician-entered facts'), findsNothing);
     expect(find.text('Lifestyle Recommendations'), findsNothing);
     expect(find.text('Reload assessment'), findsNothing);
-    expect(find.text('Why This Result'), findsOneWidget);
+    expect(find.text('Clinical Summary'), findsOneWidget);
+    expect(find.text('Decision trace'), findsOneWidget);
+    expect(find.text('Clinician-confirmed facts'), findsNothing);
     expect(find.text('Common Advice'), findsOneWidget);
     expect(find.widgetWithText(ChoiceChip, 'Approve'), findsOneWidget);
     expect(find.widgetWithText(ChoiceChip, 'Withhold'), findsOneWidget);

@@ -4,6 +4,7 @@ import '../data/app_repository.dart';
 import '../models/case_investigations.dart';
 import '../models/clinical_case.dart';
 import '../models/clinical_result_contract.dart';
+import '../models/patient_questionnaire_catalog.dart';
 import '../models/questionnaire.dart';
 import '../utils/clinical_labels.dart';
 import '../widgets/async_panel.dart';
@@ -40,7 +41,7 @@ class ClinicianCaseScreen extends StatelessWidget {
       // Age fails closed without exposing DOB or blocking the rest of the case.
     }
 
-  final questionnaireForm = await repository.fetchQuestionnaireForm();
+    final questionnaireForm = await repository.fetchQuestionnaireForm();
 
     return _ClinicianCaseData(
       assessment: assessment,
@@ -68,6 +69,134 @@ class ClinicianCaseScreen extends StatelessWidget {
           ),
         ),
       );
+
+  String _nextStep(
+    ClinicalCase assessment,
+    CaseInvestigations? investigations,
+  ) {
+    if (assessment.needsClinicianInput) {
+      return investigations?.canStartPathway == true
+          ? 'Review the clinical facts. Then complete the pathway.'
+          : 'Complete and confirm the investigations before you start the pathway.';
+    }
+    if (assessment.status == ClinicalCaseStatus.approved ||
+        assessment.status == ClinicalCaseStatus.withheld) {
+      return 'View the saved clinician decision.';
+    }
+    if (assessment.canReview) {
+      return 'Review the care result. Then record your decision.';
+    }
+    return 'Review the case and its current status.';
+  }
+
+  Widget _caseSummary(BuildContext context, _ClinicianCaseData data) {
+    final assessment = data.assessment;
+    final fracture = data.response?.answers['minimalTraumaFracture'];
+    final adultFracture = data.response?.answers['adultFractureHistory'];
+    return _section(context, 'Clinical Summary', [
+      Text(
+        assessment.patientName,
+        style: Theme.of(context).textTheme.titleMedium,
+      ),
+      const SizedBox(height: 8),
+      Text('Age: ${data.patientSummary?.age ?? 'Not available'}'),
+      Text(
+        'Sex recorded at birth: ${sexAtBirthText(assessment.patientSexAtBirth)}',
+      ),
+      Text('Case status: ${assessment.status.label}'),
+      Text(
+        'Patient questionnaire: ${data.response == null
+            ? 'Not available'
+            : data.response!.status == QuestionnaireResponseStatus.submitted
+            ? 'Submitted'
+            : 'Draft'}',
+      ),
+      if (fracture != null)
+        Text('Minimal-trauma fracture (patient report): ${factText(fracture)}'),
+      if (adultFracture != null)
+        Text(
+          'Adult fracture history (patient report): ${factText(adultFracture)}',
+        ),
+      Text(
+        'Investigations: ${data.investigations == null ? 'Not available' : _investigationsStatus(data.investigations!)}',
+      ),
+      const Divider(height: 24),
+      Text('Next step', style: Theme.of(context).textTheme.titleSmall),
+      const SizedBox(height: 4),
+      Text(_nextStep(assessment, data.investigations)),
+    ]);
+  }
+
+  Widget _patientReportCard(BuildContext context, _ClinicianCaseData data) {
+    final assessment = data.assessment;
+    final displayedKeys = {
+      'sex',
+      for (final question in data.questionnaireForm.orderedQuestions)
+        question.productionAnswerKey,
+    };
+    final historicalLabels = {
+      for (final question in maturePatientQuestions)
+        question.productionAnswerKey: question.questionText,
+    };
+    return Card(
+      child: ExpansionTile(
+        key: const ValueKey('patient-questionnaire-details'),
+        title: const Text('Patient-Reported Questionnaire'),
+        subtitle: const Text(
+          'Open the full report. The clinician must confirm clinical facts.',
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+        expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'These answers are patient-reported.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          _answerRow(
+            context,
+            'Sex recorded at birth',
+            data.response?.answers['sex'] ??
+                sexAtBirthText(assessment.patientSexAtBirth),
+          ),
+          for (final question in data.questionnaireForm.orderedQuestions)
+            if (question.fieldKey != 'sex')
+              _answerRow(
+                context,
+                question.questionText,
+                _questionnaireValue(
+                  assessment,
+                  data.response,
+                  question.productionAnswerKey,
+                ),
+              ),
+          for (final entry
+              in (data.response?.answers ?? const <String, Object?>{}).entries)
+            if (!displayedKeys.contains(entry.key))
+              _answerRow(
+                context,
+                historicalLabels[entry.key] ?? entry.key,
+                entry.value,
+              ),
+          _answerRow(
+            context,
+            'Age',
+            data.patientSummary?.age ?? 'Not available',
+          ),
+          if (data.response != null) ...[
+            Text('Questionnaire revision ${data.response!.revision}'),
+            if (data.response!.submittedAt != null)
+              Text(
+                'Questionnaire submitted ${formatDate(data.response!.submittedAt!)}',
+              ),
+          ],
+          Text('Assessment revision ${assessment.revision}'),
+          if (assessment.submittedAt != null)
+            Text('Submitted ${formatDate(assessment.submittedAt!)}'),
+        ],
+      ),
+    );
+  }
 
   Widget _answerRow(BuildContext context, String label, Object? value) =>
       Padding(
@@ -175,43 +304,12 @@ class ClinicianCaseScreen extends StatelessWidget {
             load: _load,
             builder: (data, reload) {
               final assessment = data.assessment;
-              final response = data.response;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _section(context, 'Patient Overview', [
-                    Text(
-                      assessment.patientName,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    Text('Assessment revision ${assessment.revision}'),
-                    if (assessment.submittedAt != null)
-                      Text('Submitted ${formatDate(assessment.submittedAt!)}'),
-                  ]),
+                  _caseSummary(context, data),
                   const SizedBox(height: 12),
-                  _section(context, 'Patient-Reported Questionnaire', [
-                    _answerRow(
-                      context,
-                      'Sex recorded at birth',
-                      sexAtBirthText(assessment.patientSexAtBirth),
-                    ),
-                    for (final question in data.questionnaireForm.orderedQuestions)
-                      if (question.fieldKey != 'sex')
-                        _answerRow(
-                          context,
-                          question.questionText,
-                          _questionnaireValue(
-                            assessment,
-                            response,
-                            question.productionAnswerKey,
-                          ),
-                        ),
-                    _answerRow(
-                      context,
-                      'Age',
-                      data.patientSummary?.age ?? 'Unavailable',
-                    ),
-                  ]),
+                  _patientReportCard(context, data),
                   const SizedBox(height: 12),
                   _section(context, 'Investigations', [
                     if (data.investigationsError != null) ...[

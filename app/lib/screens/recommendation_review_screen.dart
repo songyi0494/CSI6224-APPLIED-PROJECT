@@ -28,7 +28,8 @@ class RecommendationReviewScreen extends StatefulWidget {
       _RecommendationReviewScreenState();
 }
 
-class _RecommendationReviewScreenState extends State<RecommendationReviewScreen> {
+class _RecommendationReviewScreenState
+    extends State<RecommendationReviewScreen> {
   final _message = TextEditingController();
   ClinicalCaseStatus? _decision;
   bool _saving = false;
@@ -101,9 +102,11 @@ class _RecommendationReviewScreenState extends State<RecommendationReviewScreen>
       return;
     }
     if (_message.text.trim().isEmpty) {
-      setState(() => _error = _decision == ClinicalCaseStatus.withheld
-          ? 'Enter the reason for withholding this recommendation.'
-          : 'Enter the clinician message for the patient.');
+      setState(
+        () => _error = _decision == ClinicalCaseStatus.withheld
+            ? 'Enter the reason for withholding this recommendation.'
+            : 'Enter the clinician message for the patient.',
+      );
       return;
     }
     if (_decision == ClinicalCaseStatus.approved &&
@@ -147,15 +150,15 @@ class _RecommendationReviewScreenState extends State<RecommendationReviewScreen>
   }
 
   Widget _card(String title, List<Widget> content) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
+    padding: const EdgeInsets.only(bottom: 12),
     child: Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             ...content,
           ],
         ),
@@ -179,25 +182,209 @@ class _RecommendationReviewScreenState extends State<RecommendationReviewScreen>
           }),
   );
 
+  String _pathwayName(ClinicalCase assessment) {
+    final pathway = assessment.evaluation?.pathway;
+    if (pathway == 'PATHWAY1') return 'Pathway 1';
+    if (pathway == 'PATHWAY2') return 'Pathway 2';
+    if (assessment.pathway == ClinicalPathway.pathway1) return 'Pathway 1';
+    if (assessment.pathway == ClinicalPathway.pathway2) return 'Pathway 2';
+    return 'Not recorded';
+  }
+
+  String _resultSummary(ClinicalCase assessment) {
+    if (assessment.status == ClinicalCaseStatus.approved) {
+      return 'The clinician approved this result.';
+    }
+    if (assessment.status == ClinicalCaseStatus.withheld) {
+      return 'The clinician withheld this result.';
+    }
+    final evaluation = assessment.evaluation;
+    if (evaluation == null) {
+      return 'No evaluated care result is available.';
+    }
+    if (evaluation.missingInputs.isNotEmpty) {
+      return 'More information is required. Review the missing inputs below.';
+    }
+    if (evaluation.warnings.isNotEmpty) {
+      return 'Review the warnings before you record a decision.';
+    }
+    if (evaluation.canApprove) {
+      return 'Review the proposed care actions. Then record your decision.';
+    }
+    return 'This result is not ready for approval. Review the details.';
+  }
+
+  Widget _status(ClinicalCaseStatus status) {
+    final scheme = Theme.of(context).colorScheme;
+    final approved = status == ClinicalCaseStatus.approved;
+    final withheld = status == ClinicalCaseStatus.withheld;
+    final label = approved
+        ? 'Approved'
+        : withheld
+        ? 'Withheld'
+        : status.label;
+    return Semantics(
+      label: 'Saved case status: $label',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: withheld ? scheme.errorContainer : scheme.primaryContainer,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              approved
+                  ? Icons.check_circle_outline
+                  : withheld
+                  ? Icons.block_outlined
+                  : Icons.info_outline,
+              size: 18,
+              color: withheld
+                  ? scheme.onErrorContainer
+                  : scheme.onPrimaryContainer,
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: withheld
+                      ? scheme.onErrorContainer
+                      : scheme.onPrimaryContainer,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _clinicalSummary(_RecommendationReviewData data) {
+    final assessment = data.assessment;
+    final evaluation = assessment.evaluation;
+    final answers = data.questionnaire?.answers;
+    final reportedFracture = answers?['minimalTraumaFracture'];
+    final adultFracture = answers?['adultFractureHistory'];
+    final currentTreatment =
+        assessment.clinicianFacts['osteoporosisTreatmentStatus'];
+    final kidneyFunction = assessment.clinicianFacts['eGFR'];
+    final recentMajorFracture =
+        assessment.clinicianFacts['hipVertebralOrMultipleFracturesInLast24M'];
+    final veryHighRisk = assessment.clinicianFacts['highRisk'];
+    return _card('Clinical Summary', [
+      Wrap(
+        spacing: 16,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            assessment.patientName,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          Text('Clinical pathway: ${_pathwayName(assessment)}'),
+          if (assessment.status != ClinicalCaseStatus.approved &&
+              assessment.status != ClinicalCaseStatus.withheld)
+            _status(assessment.status),
+        ],
+      ),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 24,
+        runSpacing: 4,
+        children: [
+          if (reportedFracture != null)
+            Text(
+              'Minimal-trauma fracture (patient report): ${factText(reportedFracture)}',
+            ),
+          if (adultFracture != null)
+            Text(
+              'Adult fracture history (patient report): ${factText(adultFracture)}',
+            ),
+          if (currentTreatment != null)
+            Text(
+              '${clinicalLabel('osteoporosisTreatmentStatus')} (clinician fact): ${factText(currentTreatment)}',
+            ),
+          if (kidneyFunction is bool)
+            Text('eGFR (recorded clinician value): ${factText(kidneyFunction)}')
+          else if (kidneyFunction is num)
+            Text('eGFR (clinician): $kidneyFunction mL/min'),
+          if (recentMajorFracture != null)
+            Text(
+              '${clinicalLabel('hipVertebralOrMultipleFracturesInLast24M')} (clinician fact): ${factText(recentMajorFracture)}',
+            ),
+          if (veryHighRisk != null)
+            Text(
+              'Very high fracture risk (clinician fact): ${factText(veryHighRisk)}',
+            ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      if (assessment.status != ClinicalCaseStatus.approved &&
+          assessment.status != ClinicalCaseStatus.withheld)
+        Text(_resultSummary(assessment)),
+      if (evaluation != null && evaluation.missingInputs.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Text(
+          'Missing information',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        for (final field in evaluation.missingInputs)
+          Text('• ${clinicalLabel(field)}'),
+      ],
+      if (evaluation != null && evaluation.warnings.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Icon(
+              Icons.warning_amber_outlined,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            const SizedBox(width: 8),
+            Text('Warnings', style: Theme.of(context).textTheme.titleSmall),
+          ],
+        ),
+        for (final warning in evaluation.warnings) Text('• $warning'),
+      ],
+      if (data.resultsReview == null) ...[
+        const SizedBox(height: 4),
+        const Text(
+          'Common Advice: Not generated. Generate it before approval.',
+        ),
+      ],
+    ]);
+  }
+
   // Display-only mapping: the backend remains responsible for evaluating rules.
   static const _traceFactKeys = <String, List<String>>{
     'PATHWAY1:RENAL_DYSFUNCTION': ['eGFR'],
     'PATHWAY1:ON_OSTEOPOROSIS_TREATMENT': ['osteoporosisTreatmentStatus'],
     'PATHWAY1:RESIDENTIAL_OR_FRAILTY': [
-      'liveInResidentialCare', 'clinicalFrailtyScore', 'lifeExpectancy',
+      'liveInResidentialCare',
+      'clinicalFrailtyScore',
+      'lifeExpectancy',
     ],
     'PATHWAY1:ADHERENCE_CONCERN': [
-      'knownPoorMedicationAdherence', 'cognitiveImpairment',
+      'knownPoorMedicationAdherence',
+      'cognitiveImpairment',
     ],
     'PATHWAY1:DXA_SCAN_AVAILABILITY': ['testAvailability'],
     'PATHWAY1:T_SCORE_CHECK': [
-      'femoralNeckTscore', 'hipTscore', 'lumbarSpineTscore',
+      'femoralNeckTscore',
+      'hipTscore',
+      'lumbarSpineTscore',
     ],
     'PATHWAY1:RECENT_MAJOR_FRACTURES': [
       'hipVertebralOrMultipleFracturesInLast24M',
     ],
     'PATHWAY2:ON_ANTIRESORPTIVE_TREATMENT': ['antiresorptiveTreatmentStatus'],
-    'PATHWAY2:ANTIRESORPTIVE_TREATMENT_DURATION': ['antiresorptiveTreatmentDuration'],
+    'PATHWAY2:ANTIRESORPTIVE_TREATMENT_DURATION': [
+      'antiresorptiveTreatmentDuration',
+    ],
     'PATHWAY2:TREATMENT_ADHERENCE': ['adheredToTheTreatment'],
     'PATHWAY2:SYMPTOMATIC_FRACTURE': ['symptomaticFractureInLast12M'],
     'PATHWAY2:MULTIPLE_FRACTURES': ['multipleFractures'],
@@ -206,9 +393,13 @@ class _RecommendationReviewScreenState extends State<RecommendationReviewScreen>
     'PATHWAY2:SEQUENCING_WITH_HISTORY': ['sequencingFromDenosumab'],
     'PATHWAY2:SEQUENCING_NO_HISTORY': ['sequencingFromDenosumab'],
     'PATHWAY1:HIGH_RISK_CHECK': [
-      'femoralNeckTscore', 'hipTscore', 'lumbarSpineTscore',
-      'recentFractureWithin2Y', 'historyOf2orMoreFractures',
-      'clinicalRiskFactors', 'FRAX10YmajorOsteoporoticFractureRiskPercent',
+      'femoralNeckTscore',
+      'hipTscore',
+      'lumbarSpineTscore',
+      'recentFractureWithin2Y',
+      'historyOf2orMoreFractures',
+      'clinicalRiskFactors',
+      'FRAX10YmajorOsteoporoticFractureRiskPercent',
       'FRAX10YmajorHipFractureRiskPercent',
     ],
   };
@@ -227,129 +418,202 @@ class _RecommendationReviewScreenState extends State<RecommendationReviewScreen>
           if (assessment.clinicianFacts.containsKey(key))
             MapEntry(key, assessment.clinicianFacts[key]),
       if (factKeys == null)
-        for (final entry in trace.input.entries) entry,
+        for (final entry in trace.input.entries)
+          if (clinicalLabel(entry.key) != entry.key || entry.key == 'eGFR')
+            entry,
     ];
     final isLeaf = trace.nodeType == 'leaf';
-    final ruleLines = item.details.where(
-      (detail) => detail.startsWith('Rule checked:'),
-    );
+    final ruleLines = item.details
+        .where((detail) => detail.startsWith('Rule checked:'))
+        .map(
+          (line) => line
+              .replaceAll('eGFR >= 30', 'eGFR >= 30 mL/min')
+              .replaceAll(
+                'FRAX 10-year major osteoporotic fracture risk >= 30',
+                'FRAX 10-year major osteoporotic fracture risk >= 30%',
+              )
+              .replaceAll(
+                'FRAX 10-year hip fracture risk >= 4.5',
+                'FRAX 10-year hip fracture risk >= 4.5%',
+              ),
+        );
     final otherLines = item.details.where(
       (detail) => !detail.startsWith('Rule checked:'),
     );
+    final pathway = trace.pathwayId == 'PATHWAY1'
+        ? 'Pathway 1'
+        : trace.pathwayId == 'PATHWAY2'
+        ? 'Pathway 2'
+        : 'Pathway';
     final theme = Theme.of(context);
     return Padding(
+      key: ValueKey('trace-step-$index'),
       padding: const EdgeInsets.only(bottom: 12),
       child: SizedBox(
         width: double.infinity,
         child: Card(
           margin: EdgeInsets.zero,
           child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$displayNumber. ${trace.pathwayId ?? "Pathway"}',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$displayNumber. $pathway',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(item.title, style: theme.textTheme.titleMedium),
-              if (facts.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                for (final fact in facts)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text('${clinicalLabel(fact.key)}:',
-                            style: theme.textTheme.bodyMedium),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5,
+                const SizedBox(height: 6),
+                Text(
+                  item.title == trace.ruleId
+                      ? (isLeaf
+                            ? 'Recorded care outcome'
+                            : 'Clinical rule check')
+                      : item.title,
+                  style: theme.textTheme.titleMedium,
+                ),
+                if (facts.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  for (final fact in facts)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            '${clinicalLabel(fact.key)}:',
+                            style: theme.textTheme.bodyMedium,
                           ),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primaryContainer
-                                .withValues(alpha: 0.55),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            factText(fact.value),
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: theme.colorScheme.onPrimaryContainer,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primaryContainer
+                                  .withValues(alpha: 0.55),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              _clinicalFactValue(fact.key, fact.value),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: theme.colorScheme.onPrimaryContainer,
+                              ),
                             ),
                           ),
+                        ],
+                      ),
+                    ),
+                ],
+                if (ruleLines.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Rule checked',
+                          style: theme.textTheme.labelMedium,
                         ),
+                        const SizedBox(height: 4),
+                        for (final line in ruleLines)
+                          Text(line.substring('Rule checked:'.length).trim()),
                       ],
                     ),
                   ),
-              ],
-              if (ruleLines.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
+                ],
+                // Legacy trace entries may contain useful non-rule details.
+                for (final line in otherLines.where(
+                  (line) => !trace.input.keys.any(
+                    (key) =>
+                        clinicalLabel(key) == key &&
+                        key != 'eGFR' &&
+                        line.startsWith('$key:'),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Rule checked', style: theme.textTheme.labelMedium),
-                      const SizedBox(height: 4),
-                      for (final line in ruleLines)
-                        Text(line.substring('Rule checked:'.length).trim()),
-                    ],
+                ))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(line),
                   ),
-                ),
-              ],
-              // Legacy trace entries may contain useful non-rule details.
-              for (final line in otherLines)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(line),
-                ),
-              if (isLeaf) ...[
                 const SizedBox(height: 8),
-                Text(item.result, style: theme.textTheme.bodyMedium),
+                Text(
+                  isLeaf ? 'Terminal outcome recorded.' : item.result,
+                  style: theme.textTheme.bodyMedium,
+                ),
+                for (final action in trace.actionsTriggered)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: PathwayActionView(
+                      action: action,
+                      compactMedications: true,
+                    ),
+                  ),
               ],
-            ],
-          ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  // Hide only redirect entries from the presentation, not final treatment leaves.
-  bool _isRedirectTrace(int index, ClinicalCase assessment) {
-    final trace = assessment.evaluation!.trace[index];
-    return trace.nodeType == 'leaf' &&
-        (trace.ruleId.startsWith('LEAF_REDIRECT_PATHWAY') ||
-            trace.actionsTriggered.any(
-              (action) => action.type == 'pathwayRedirect',
-            ));
+  String _clinicalFactValue(String key, Object? value) {
+    if (value is num && key == 'eGFR') return '$value mL/min';
+    if (value is num && key.startsWith('FRAX') && key.endsWith('Percent')) {
+      return '$value%';
+    }
+    if (key == 'sex') return sexAtBirthText(value?.toString());
+    if (key == 'tScoreSite') return factText(value).replaceAll('_', ' ');
+    return factText(value);
   }
 
   Widget _whyThisResult(ClinicalCase assessment) {
-    final visibleIndexes = <int>[
-      if (assessment.evaluation != null)
-        for (var i = 0; i < assessment.evaluation!.trace.length; i++)
-          if (!_isRedirectTrace(i, assessment)) i,
-    ];
+    final evaluation = assessment.evaluation;
     return Card(
       child: ExpansionTile(
-        title: const Text('Why This Result'),
+        key: const ValueKey('decision-trace'),
+        title: const Text('Decision trace'),
+        subtitle: const Text(
+          'Open the clinician facts and recorded rule checks.',
+        ),
         childrenPadding: const EdgeInsets.all(16),
         children: [
-          for (var i = 0; i < visibleIndexes.length; i++)
-            _traceTile(assessment, visibleIndexes[i], i + 1),
+          if (assessment.clinicianFacts.isNotEmpty) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Clinician-confirmed facts',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final entry in assessment.clinicianFacts.entries)
+              if (clinicalLabel(entry.key) != entry.key || entry.key == 'eGFR')
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text(
+                      '${clinicalLabel(entry.key)}: ${_clinicalFactValue(entry.key, entry.value)}',
+                    ),
+                  ),
+                ),
+            const Divider(height: 28),
+          ],
+          if (evaluation == null || evaluation.trace.isEmpty)
+            const Text('No decision trace is available for this result.'),
+          if (evaluation != null)
+            for (var i = 0; i < evaluation.trace.length; i++)
+              _traceTile(assessment, i, i + 1),
         ],
       ),
     );
@@ -405,109 +669,168 @@ class _RecommendationReviewScreenState extends State<RecommendationReviewScreen>
         ),
       ]);
 
+  Widget _careRecommendation(ClinicalCase assessment) {
+    final evaluation = assessment.evaluation;
+    return _card('Care Recommendation', [
+      if (evaluation == null || evaluation.actions.isEmpty)
+        const Text('No recommendation is available for approval.'),
+      if (evaluation != null)
+        for (final action in evaluation.actions)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: PathwayActionView(action: action, compactMedications: true),
+          ),
+    ]);
+  }
+
+  Widget _commonAdvice(
+    _RecommendationReviewData data,
+    VoidCallback reload,
+  ) => _card('Common Advice', [
+    if (data.resultsReview == null) ...[
+      const Text(
+        'Current Common Advice has not been generated for this result.',
+      ),
+      const SizedBox(height: 8),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: OutlinedButton(
+          onPressed: _saving ? null : () => _generateCommonAdvice(data, reload),
+          child: const Text('Generate Common Advice'),
+        ),
+      ),
+    ] else
+      for (final advice in data.resultsReview!.commonAdvice)
+        Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(advice)),
+  ]);
+
+  Widget _savedDecision(ClinicalCase assessment) => _card(
+    assessment.status == ClinicalCaseStatus.withheld
+        ? 'Saved withholding decision'
+        : 'Clinician Decision',
+    [
+      const Text('Decision status'),
+      const SizedBox(height: 4),
+      Align(
+        key: const ValueKey('saved-decision-status'),
+        alignment: Alignment.centerLeft,
+        child: _status(assessment.status),
+      ),
+      if (assessment.decisionNotes?.isNotEmpty == true) ...[
+        const SizedBox(height: 12),
+        Text('Clinician note', style: Theme.of(context).textTheme.bodyMedium),
+        const SizedBox(height: 4),
+        SelectableText(
+          assessment.decisionNotes!,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            height: 1.4,
+          ),
+        ),
+      ],
+    ],
+  );
+
+  Widget _navigation() => LayoutBuilder(
+    builder: (_, constraints) {
+      final buttons = <Widget>[
+        FilledButton(
+          onPressed: () =>
+              Navigator.of(context).popUntil((route) => route.isFirst),
+          child: const Text('Return to Work Queue'),
+        ),
+        const SizedBox(width: 12, height: 8),
+        OutlinedButton(
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop(true);
+            } else {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute<void>(
+                  builder: (_) => ClinicianCaseScreen(
+                    caseId: widget.caseId,
+                    repository: widget.repository,
+                  ),
+                ),
+              );
+            }
+          },
+          child: const Text('Back to Patient Overview'),
+        ),
+      ];
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: constraints.maxWidth >= 1000
+            ? Row(children: buttons)
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: buttons,
+              ),
+      );
+    },
+  );
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('Review Result'),
       actions: [GlobalSignOut(repository: widget.repository)],
     ),
-    body: SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
-          child: AsyncPanel<_RecommendationReviewData>(
-            load: _load,
-            builder: (data, reload) {
-              final assessment = data.assessment;
-              final evaluation = assessment.evaluation;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _card('Care Recommendation', [
-                    if (evaluation == null || evaluation.actions.isEmpty)
-                      const Text(
-                        'No recommendation is available for approval.',
-                      ),
-                    if (evaluation != null)
-                      for (final action in evaluation.actions)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: PathwayActionView(action: action),
-                        ),
-                  ]),
-                  _whyThisResult(assessment),
-                  const SizedBox(height: 16),
-                  _card('Common Advice', [
-                    if (data.resultsReview == null) ...[
-                      const Text(
-                        'Current Common Advice has not been generated for this result.',
-                      ),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: OutlinedButton(
-                          onPressed: _saving
-                              ? null
-                              : () => _generateCommonAdvice(data, reload),
-                          child: const Text('Generate Common Advice'),
-                        ),
-                      ),
-                    ] else
-                      for (final advice in data.resultsReview!.commonAdvice)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text(advice),
-                        ),
-                  ]),
-                  if (assessment.canReview) _decisionCard(data, reload),
-                  if (assessment.status == ClinicalCaseStatus.approved ||
-                    assessment.status == ClinicalCaseStatus.withheld)
-                  _card(
-                    assessment.status == ClinicalCaseStatus.withheld
-                        ? 'Saved withholding decision'
-                        : 'Clinician Decision',
-                    [
-                      const Text('Decision status'),
-                      Text(
-                        assessment.status == ClinicalCaseStatus.approved
-                            ? 'Approved'
-                            : 'Withheld',
-                      ),
-                      if (assessment.decisionNotes?.isNotEmpty == true) ...[
-                        const SizedBox(height: 8),
-                        const Text('Clinician note'),
-                        Text(assessment.decisionNotes!),
-                      ],
-                      const SizedBox(height: 16),
-                      FilledButton(
-                        onPressed: () => Navigator.of(
-                          context,
-                        ).popUntil((route) => route.isFirst),
-                        child: const Text('Return to Work Queue'),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton(
-                        onPressed: () {
-                          if (Navigator.of(context).canPop()) {
-                            Navigator.of(context).pop(true);
-                          } else {
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute<void>(
-                                builder: (_) => ClinicianCaseScreen(
-                                  caseId: widget.caseId,
-                                  repository: widget.repository,
+    body: DefaultTextStyle.merge(
+      style: const TextStyle(fontSize: 14),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Center(
+          child: ConstrainedBox(
+            key: const ValueKey('review-content'),
+            constraints: const BoxConstraints(maxWidth: 1280),
+            child: AsyncPanel<_RecommendationReviewData>(
+              load: _load,
+              builder: (data, reload) {
+                final assessment = data.assessment;
+                final finalDecision =
+                    assessment.status == ClinicalCaseStatus.approved ||
+                    assessment.status == ClinicalCaseStatus.withheld;
+                final right = Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _commonAdvice(data, reload),
+                    if (assessment.canReview) _decisionCard(data, reload),
+                    if (finalDecision) _savedDecision(assessment),
+                  ],
+                );
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _clinicalSummary(data),
+                    LayoutBuilder(
+                      builder: (_, constraints) => constraints.maxWidth >= 1000
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  flex: 65,
+                                  child: _careRecommendation(assessment),
                                 ),
-                              ),
-                            );
-                          }
-                        },
-                        child: const Text('Back to Patient Overview'),
-                      ),
-                    ],
-                  ),
-              ]);
-            },
+                                const SizedBox(width: 16),
+                                Expanded(flex: 35, child: right),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _careRecommendation(assessment),
+                                right,
+                              ],
+                            ),
+                    ),
+                    _whyThisResult(assessment),
+                    if (finalDecision) _navigation(),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),

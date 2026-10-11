@@ -8,21 +8,29 @@ class ReasoningTraceEntry {
     this.nodeType,
     this.nextNodeId,
     this.actionsTriggered = const [],
+    this.recordedData = const {},
   });
   final String ruleId, reason;
   final bool? matched;
   final Map<String, Object?> input;
   final String? pathwayId, nodeType, nextNodeId;
   final List<PathwayAction> actionsTriggered;
+
+  /// Original response fields retained for display-only provenance and auditing.
+  final Map<String, Object?> recordedData;
   factory ReasoningTraceEntry.fromJson(Map<String, dynamic> j) =>
       ReasoningTraceEntry(
+        recordedData: Map<String, Object?>.unmodifiable(j),
         ruleId: (j['rule_id'] ?? j['nodeId'] ?? 'unknown').toString(),
         matched: j['matched'] as bool?,
         pathwayId: j['pathwayId']?.toString(),
         nodeType: j['nodeType']?.toString(),
         nextNodeId: j['nextNodeId']?.toString(),
         actionsTriggered: (j['actionsTriggered'] as List? ?? const [])
-            .map((a) => PathwayAction.fromJson(Map<String, dynamic>.from(a as Map)))
+            .map(
+              (a) =>
+                  PathwayAction.fromJson(Map<String, dynamic>.from(a as Map)),
+            )
             .toList(growable: false),
         reason: (j['reason'] ?? _liveReason(j)).toString(),
         input: Map<String, Object?>.from((j['input'] as Map?) ?? const {}),
@@ -47,6 +55,7 @@ class PathwayEvaluation {
     this.investigationRevision,
     this.missingInputs = const [],
     this.warnings = const [],
+    this.recordedData = const {},
   });
   final String? pathway;
   final int? pathwayRevision, investigationRevision;
@@ -54,6 +63,12 @@ class PathwayEvaluation {
   final List<PathwayAction> actions;
   final List<ReasoningTraceEntry> trace;
   final List<String> missingInputs, warnings;
+
+  /// Keeps missing metadata distinct from the legacy parser defaults below.
+  final Map<String, Object?> recordedData;
+  String? get recordedRuleVersion => recordedData['rule_version']?.toString();
+  String? get recordedRoutingReason =>
+      recordedData['routing_reason']?.toString();
   bool get canApprove =>
       (pathway == 'PATHWAY1' || pathway == 'PATHWAY2') &&
       (decision == 'action_taken' || decision == 'complete') &&
@@ -62,6 +77,7 @@ class PathwayEvaluation {
   factory PathwayEvaluation.fromJson(
     Map<String, dynamic> j,
   ) => PathwayEvaluation(
+    recordedData: Map<String, Object?>.unmodifiable(j),
     pathway: (j['pathway'] ?? j['pathwayId']) as String?,
     decision: (j['decision'] ?? j['status'] ?? 'complete').toString(),
     ruleVersion: (j['rule_version'] ?? 'evaluate_pathway-v12').toString(),

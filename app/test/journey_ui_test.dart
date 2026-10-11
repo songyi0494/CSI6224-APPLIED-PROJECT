@@ -1,6 +1,5 @@
 import 'package:csi6224_patient_feedback/app.dart';
 import 'package:csi6224_patient_feedback/data/mock_app_repository.dart';
-import 'package:csi6224_patient_feedback/models/patient_questionnaire_catalog.dart';
 import 'package:csi6224_patient_feedback/models/questionnaire.dart';
 import 'package:csi6224_patient_feedback/models/app_user.dart';
 import 'package:csi6224_patient_feedback/models/clinical_input.dart';
@@ -74,89 +73,88 @@ void main() {
     expect(find.text('Questionnaire submitted'), findsWidgets);
   });
 
-  testWidgets(
-    'clinician overview shows only five patient answers and unavailable age',
-    (tester) async {
-      final repository = MockAppRepository();
-      await _signIn(repository, 'patient@example.test');
-      await repository.submitQuestionnaireResponse(
-        answers: const {
-          'sex': 'Female',
-          'postmenopausal': 'Yes',
-          'menopauseTiming': 'Around 2010',
-          'adultFractureHistory': 'Yes',
-          'fractureSite': 'Hip',
-          'fractureTiming': '2020',
-          'fractureCircumstance': 'Fall',
-          'fractureAdditionalInformation': 'Historical detail',
-          'osteoporosisMedicineHistory': 'Before',
-          'osteoporosisMedicineName': 'Historical medicine',
-          'osteoporosisMedicineTiming': '2019',
-          'medicineAdherenceDifficulty': 'Yes',
-          'medicineAdherenceDifficultyDetails': 'Historical detail',
-          'fallsPast12Months': 2,
-          'fearOfFalling': 'Yes',
-          'movementRehabilitationInterest': 'Yes',
-          'physicalActivity': 'Yes',
-          'physicalActivityDescription': 'Walking',
-          'myocardialInfarctionHistory': 'No',
-          'myocardialInfarctionTiming': 'Not applicable',
-          'strokeHistory': 'No',
-          'strokeTiming': 'Not applicable',
-          'dietaryDairyServings': 2,
-          'smoking': 'No',
-          'alcohol': 'No',
-        },
-      );
-      final assessment = (await repository.fetchClinicalCases()).single;
-      await repository.submitAssessment(
-        id: assessment.id,
-        revision: assessment.revision,
-        input: assessment.input,
-      );
-      await _signIn(repository, 'clinician@example.test');
-      await tester.pumpWidget(OsteoporosisPathwaysApp(repository: repository));
-      await tester.pumpAndSettle();
+  testWidgets('clinician overview keeps full saved answers behind disclosure', (
+    tester,
+  ) async {
+    final repository = MockAppRepository();
+    await _signIn(repository, 'patient@example.test');
+    await repository.submitQuestionnaireResponse(
+      answers: const {
+        'sex': 'Female',
+        'postmenopausal': 'Yes',
+        'menopauseTiming': 'Around 2010',
+        'adultFractureHistory': 'Yes',
+        'fractureSite': 'Hip',
+        'fractureTiming': '2020',
+        'fractureCircumstance': 'Fall',
+        'fractureAdditionalInformation': 'Historical detail',
+        'osteoporosisMedicineHistory': 'Before',
+        'osteoporosisMedicineName': 'Historical medicine',
+        'osteoporosisMedicineTiming': '2019',
+        'medicineAdherenceDifficulty': 'Yes',
+        'medicineAdherenceDifficultyDetails': 'Historical detail',
+        'fallsPast12Months': 2,
+        'fearOfFalling': 'Yes',
+        'movementRehabilitationInterest': 'Yes',
+        'physicalActivity': 'Yes',
+        'physicalActivityDescription': 'Walking',
+        'myocardialInfarctionHistory': 'No',
+        'myocardialInfarctionTiming': 'Not applicable',
+        'strokeHistory': 'No',
+        'strokeTiming': 'Not applicable',
+        'dietaryDairyServings': 2,
+        'smoking': 'No',
+        'alcohol': 'No',
+      },
+    );
+    final assessment = (await repository.fetchClinicalCases()).single;
+    await repository.submitAssessment(
+      id: assessment.id,
+      revision: assessment.revision,
+      input: assessment.input,
+    );
+    await _signIn(repository, 'clinician@example.test');
+    await tester.pumpWidget(OsteoporosisPathwaysApp(repository: repository));
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Continue'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Continue'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('Patient-Reported Questionnaire'), findsOneWidget);
-      expect(find.text('Patient reported'), findsNothing);
-      for (final label in const [
-        'Sex recorded at birth',
-        'Postmenopausal status',
-        'Dietary dairy servings',
-        'Smoking',
-        'Alcohol',
-        'Age',
-      ]) {
-        expect(find.text(label), findsOneWidget);
-      }
-      expect(find.text('Female'), findsOneWidget);
-      expect(find.text('71'), findsOneWidget);
-      expect(
-        find.text('About when did you go through menopause?'),
-        findsNothing,
-      );
-      for (final hiddenQuestion in maturePatientQuestions) {
-        expect(find.text(hiddenQuestion.questionText), findsNothing);
-      }
-      expect(find.text('Hip'), findsNothing);
-      expect(find.text('Historical medicine'), findsNothing);
-      for (final removedSection in const [
-        'Assessment Status',
-        'Lifestyle Information',
-        'Relevant Clinical Information',
-        'Pathway Status',
-      ]) {
-        expect(find.text(removedSection), findsNothing);
-      }
-      expect(find.text('Investigations'), findsOneWidget);
-      expect(find.text('Not completed'), findsOneWidget);
-      expect(find.text('Start Pathway'), findsOneWidget);
-    },
-  );
+    expect(find.text('Clinical Summary'), findsOneWidget);
+    expect(find.text('Patient-Reported Questionnaire'), findsOneWidget);
+    await tester.tap(find.text('Patient-Reported Questionnaire'));
+    await tester.pumpAndSettle();
+    expect(find.text('Patient reported'), findsNothing);
+    for (final label in const [
+      'Sex recorded at birth',
+      'Are you postmenopausal?',
+      'How many servings of dairy do you have per day?',
+      'Do you currently smoke?',
+      'Do you currently drink alcohol?',
+      'Age',
+    ]) {
+      expect(find.text(label), findsOneWidget);
+    }
+    expect(find.text('Female'), findsOneWidget);
+    expect(find.text('71'), findsOneWidget);
+    expect(
+      find.text('About when did you go through menopause?'),
+      findsOneWidget,
+    );
+    expect(find.text('Hip'), findsOneWidget);
+    expect(find.text('Historical medicine'), findsOneWidget);
+    for (final removedSection in const [
+      'Assessment Status',
+      'Lifestyle Information',
+      'Relevant Clinical Information',
+      'Pathway Status',
+    ]) {
+      expect(find.text(removedSection), findsNothing);
+    }
+    expect(find.text('Investigations'), findsOneWidget);
+    expect(find.text('Not completed'), findsOneWidget);
+    expect(find.text('Start Pathway'), findsOneWidget);
+  });
 
   testWidgets('clinician overview shows N/A for absent male menopause answer', (
     tester,
@@ -192,7 +190,9 @@ void main() {
     await tester.tap(find.widgetWithText(OutlinedButton, 'Continue'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Postmenopausal status'), findsOneWidget);
+    await tester.tap(find.text('Patient-Reported Questionnaire'));
+    await tester.pumpAndSettle();
+    expect(find.text('Are you postmenopausal?'), findsOneWidget);
     expect(find.text('N/A'), findsOneWidget);
     expect(find.text('Male'), findsOneWidget);
   });

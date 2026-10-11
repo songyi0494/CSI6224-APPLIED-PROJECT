@@ -33,7 +33,7 @@ const liveNodeLabels = <String, String>{
 };
 
 const liveNodeConditions = <String, String>{
-  'PATHWAY1:RENAL_DYSFUNCTION': 'eGFR > 30',
+  'PATHWAY1:RENAL_DYSFUNCTION': 'eGFR >= 30',
   'PATHWAY1:ON_OSTEOPOROSIS_TREATMENT': 'Currently on osteoporosis treatment = Yes',
   'PATHWAY1:RESIDENTIAL_OR_FRAILTY': '(Lives in residential care = Yes OR Clinical Frailty Scale score >= 6 OR Life expectancy < 7)',
   'PATHWAY1:ADHERENCE_CONCERN': '(Known poor medication adherence = Yes OR Cognitive impairment affecting adherence = Yes)',

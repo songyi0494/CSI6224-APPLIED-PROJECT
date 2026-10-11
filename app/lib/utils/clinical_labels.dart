@@ -13,7 +13,7 @@ const clinicalLabels = <String, String>{
   'liveInResidentialCare': 'Lives in residential aged care',
   'knownPoorMedicationAdherence': 'Difficulty taking medicines as prescribed',
   'cognitiveImpairment': 'Diagnosed cognitive impairment',
-  'testAvailable': 'Bone density test available',
+  'testAvailability': 'Bone density test available',
   'testWithinLast2Years': 'Bone density test within the last 2 years',
   'T-score': 'Lowest recorded T-score',
   'vitaminDLevel': 'Recorded vitamin D result',

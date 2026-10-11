@@ -28,7 +28,7 @@
         },
         "ANTIRESORPTIVE_TREATMENT_DURATION": {
             "type": "decision",
-            "question": "Has the patient been receiving their pre-existing antiresorptive treatment for 12 months or longer?",
+            "question": "Has the patient been receiving their pre-existing antiresorptive treatment for more than 12 months?",
             "condition": {
                 "fact": "antiresorptiveTreatmentDuration",
                 "operator": "equals",

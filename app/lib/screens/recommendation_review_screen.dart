@@ -10,6 +10,8 @@ import '../models/questionnaire.dart';
 import '../utils/clinical_labels.dart';
 import '../utils/clinical_trace_presentation.dart';
 import '../widgets/async_panel.dart';
+import '../widgets/global_sign_out.dart';
+import 'clinician_case_screen.dart';
 
 class RecommendationReviewScreen extends StatefulWidget {
   const RecommendationReviewScreen({
@@ -26,8 +28,7 @@ class RecommendationReviewScreen extends StatefulWidget {
       _RecommendationReviewScreenState();
 }
 
-class _RecommendationReviewScreenState
-    extends State<RecommendationReviewScreen> {
+class _RecommendationReviewScreenState extends State<RecommendationReviewScreen> {
   final _message = TextEditingController();
   ClinicalCaseStatus? _decision;
   bool _saving = false;
@@ -178,68 +179,181 @@ class _RecommendationReviewScreenState
           }),
   );
 
-  Widget _traceTile(ClinicalCase assessment, int index) {
+  // Display-only mapping: the backend remains responsible for evaluating rules.
+  static const _traceFactKeys = <String, List<String>>{
+    'PATHWAY1:RENAL_DYSFUNCTION': ['eGFR'],
+    'PATHWAY1:ON_OSTEOPOROSIS_TREATMENT': ['osteoporosisTreatmentStatus'],
+    'PATHWAY1:RESIDENTIAL_OR_FRAILTY': [
+      'liveInResidentialCare', 'clinicalFrailtyScore', 'lifeExpectancy',
+    ],
+    'PATHWAY1:ADHERENCE_CONCERN': [
+      'knownPoorMedicationAdherence', 'cognitiveImpairment',
+    ],
+    'PATHWAY1:DXA_SCAN_AVAILABILITY': ['testAvailability'],
+    'PATHWAY1:T_SCORE_CHECK': [
+      'femoralNeckTscore', 'hipTscore', 'lumbarSpineTscore',
+    ],
+    'PATHWAY1:RECENT_MAJOR_FRACTURES': [
+      'hipVertebralOrMultipleFracturesInLast24M',
+    ],
+    'PATHWAY2:ON_ANTIRESORPTIVE_TREATMENT': ['antiresorptiveTreatmentStatus'],
+    'PATHWAY2:ANTIRESORPTIVE_TREATMENT_DURATION': ['antiresorptiveTreatmentDuration'],
+    'PATHWAY2:TREATMENT_ADHERENCE': ['adheredToTheTreatment'],
+    'PATHWAY2:SYMPTOMATIC_FRACTURE': ['symptomaticFractureInLast12M'],
+    'PATHWAY2:MULTIPLE_FRACTURES': ['multipleFractures'],
+    'PATHWAY2:CHECK_BMD': ['lowBMD'],
+    'PATHWAY2:MI_OR_STROKE_HISTORY': ['priorMIorStroke'],
+    'PATHWAY2:SEQUENCING_WITH_HISTORY': ['sequencingFromDenosumab'],
+    'PATHWAY2:SEQUENCING_NO_HISTORY': ['sequencingFromDenosumab'],
+    'PATHWAY1:HIGH_RISK_CHECK': [
+      'femoralNeckTscore', 'hipTscore', 'lumbarSpineTscore',
+      'recentFractureWithin2Y', 'historyOf2orMoreFractures',
+      'clinicalRiskFactors', 'FRAX10YmajorOsteoporoticFractureRiskPercent',
+      'FRAX10YmajorHipFractureRiskPercent',
+    ],
+  };
+
+  Widget _traceTile(ClinicalCase assessment, int index, int displayNumber) {
     final trace = assessment.evaluation!.trace[index];
     final item = clinicalTracePresentation(
       trace,
       clinicianInput: assessment.clinicianInput,
     );
+    final factKeys = _traceFactKeys['${trace.pathwayId}:${trace.ruleId}'];
+    // Do not substitute unrelated facts for a missing value.
+    final facts = <MapEntry<String, Object?>>[
+      if (factKeys != null)
+        for (final key in factKeys)
+          if (assessment.clinicianFacts.containsKey(key))
+            MapEntry(key, assessment.clinicianFacts[key]),
+      if (factKeys == null)
+        for (final entry in trace.input.entries) entry,
+    ];
+    final isLeaf = trace.nodeType == 'leaf';
+    final ruleLines = item.details.where(
+      (detail) => detail.startsWith('Rule checked:'),
+    );
+    final otherLines = item.details.where(
+      (detail) => !detail.startsWith('Rule checked:'),
+    );
+    final theme = Theme.of(context);
     return Padding(
-      padding: EdgeInsets.only(
-        bottom: index == assessment.evaluation!.trace.length - 1 ? 0 : 16,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('${index + 1}. ${trace.pathwayId ?? "Pathway"}',
-            style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 4),
-          Text(item.title, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 6),
-          for (final detail in item.details)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(detail),
-            ),
-          Text('Result: ${item.result}'),
-          if (item.implication != null) Text('Next: ${item.implication}'),
-        ],
+      padding: const EdgeInsets.only(bottom: 12),
+      child: SizedBox(
+        width: double.infinity,
+        child: Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$displayNumber. ${trace.pathwayId ?? "Pathway"}',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(item.title, style: theme.textTheme.titleMedium),
+              if (facts.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                for (final fact in facts)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text('${clinicalLabel(fact.key)}:',
+                            style: theme.textTheme.bodyMedium),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primaryContainer
+                                .withValues(alpha: 0.55),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            factText(fact.value),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: theme.colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+              if (ruleLines.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Rule checked', style: theme.textTheme.labelMedium),
+                      const SizedBox(height: 4),
+                      for (final line in ruleLines)
+                        Text(line.substring('Rule checked:'.length).trim()),
+                    ],
+                  ),
+                ),
+              ],
+              // Legacy trace entries may contain useful non-rule details.
+              for (final line in otherLines)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(line),
+                ),
+              if (isLeaf) ...[
+                const SizedBox(height: 8),
+                Text(item.result, style: theme.textTheme.bodyMedium),
+              ],
+            ],
+          ),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _whyThisResult(ClinicalCase assessment) => Card(
-    child: ExpansionTile(
-      title: const Text('Why This Result'),
-      childrenPadding: const EdgeInsets.all(20),
-      children: [
-        if (assessment.clinicianFacts.isNotEmpty) ...[
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Clinician-confirmed facts',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-          const SizedBox(height: 8),
-          for (final entry in assessment.clinicianFacts.entries)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  '${clinicalLabel(entry.key)}: ${factText(entry.value)}',
-                ),
-              ),
-            ),
-          const Divider(height: 28),
+  // Hide only redirect entries from the presentation, not final treatment leaves.
+  bool _isRedirectTrace(int index, ClinicalCase assessment) {
+    final trace = assessment.evaluation!.trace[index];
+    return trace.nodeType == 'leaf' &&
+        (trace.ruleId.startsWith('LEAF_REDIRECT_PATHWAY') ||
+            trace.actionsTriggered.any(
+              (action) => action.type == 'pathwayRedirect',
+            ));
+  }
+
+  Widget _whyThisResult(ClinicalCase assessment) {
+    final visibleIndexes = <int>[
+      if (assessment.evaluation != null)
+        for (var i = 0; i < assessment.evaluation!.trace.length; i++)
+          if (!_isRedirectTrace(i, assessment)) i,
+    ];
+    return Card(
+      child: ExpansionTile(
+        title: const Text('Why This Result'),
+        childrenPadding: const EdgeInsets.all(16),
+        children: [
+          for (var i = 0; i < visibleIndexes.length; i++)
+            _traceTile(assessment, visibleIndexes[i], i + 1),
         ],
-        if (assessment.evaluation != null)
-          for (var i = 0; i < assessment.evaluation!.trace.length; i++)
-            _traceTile(assessment, i),
-      ],
-    ),
-  );
+      ),
+    );
+  }
 
   Widget _decisionCard(_RecommendationReviewData data, VoidCallback reload) =>
       _card('Clinician Decision', [
@@ -293,7 +407,10 @@ class _RecommendationReviewScreenState
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Review Result')),
+    appBar: AppBar(
+      title: const Text('Review Result'),
+      actions: [GlobalSignOut(repository: widget.repository)],
+    ),
     body: SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Center(
@@ -345,17 +462,51 @@ class _RecommendationReviewScreenState
                   ]),
                   if (assessment.canReview) _decisionCard(data, reload),
                   if (assessment.status == ClinicalCaseStatus.approved ||
-                      assessment.status == ClinicalCaseStatus.withheld)
-                    _card(assessment.status == ClinicalCaseStatus.withheld
-                        ? 'Saved withholding decision' : 'Clinician Decision', [
-                      Text(assessment.status.label),
+                    assessment.status == ClinicalCaseStatus.withheld)
+                  _card(
+                    assessment.status == ClinicalCaseStatus.withheld
+                        ? 'Saved withholding decision'
+                        : 'Clinician Decision',
+                    [
+                      const Text('Decision status'),
+                      Text(
+                        assessment.status == ClinicalCaseStatus.approved
+                            ? 'Approved'
+                            : 'Withheld',
+                      ),
                       if (assessment.decisionNotes?.isNotEmpty == true) ...[
                         const SizedBox(height: 8),
+                        const Text('Clinician note'),
                         Text(assessment.decisionNotes!),
                       ],
-                    ]),
-                ],
-              );
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: () => Navigator.of(
+                          context,
+                        ).popUntil((route) => route.isFirst),
+                        child: const Text('Return to Work Queue'),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton(
+                        onPressed: () {
+                          if (Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop(true);
+                          } else {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute<void>(
+                                builder: (_) => ClinicianCaseScreen(
+                                  caseId: widget.caseId,
+                                  repository: widget.repository,
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        child: const Text('Back to Patient Overview'),
+                      ),
+                    ],
+                  ),
+              ]);
             },
           ),
         ),

@@ -80,7 +80,7 @@
       "rule_id": "DXA_NOT_WITHIN_2YEARS",
       "matched": false,
       "input": {
-        "testAvailable": true,
+        "testAvailability": true,
         "testWithinLast2Years": true
       },
       "reason": "Bone density test timing: not met."
@@ -89,7 +89,7 @@
       "rule_id": "DXA_DISAVAILABLE",
       "matched": false,
       "input": {
-        "testAvailable": true
+        "testAvailability": true
       },
       "reason": "Bone density test availability: not met."
     },

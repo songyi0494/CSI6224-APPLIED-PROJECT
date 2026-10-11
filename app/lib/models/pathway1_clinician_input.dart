@@ -63,7 +63,7 @@ class Pathway1ClinicianInput {
     put('knownPoorMedicationAdherence', knownPoorMedicationAdherence);
     put('cognitiveImpairment', cognitiveImpairment);
     if (dxaImpractical != null) {
-      facts['testAvailable'] = !dxaImpractical!;
+      facts['testAvailability'] = !dxaImpractical!;
     }
     put('testWithinLast2Years', dxaDoneWithinPrevious2Years);
     put('T-score', tScoreValue);

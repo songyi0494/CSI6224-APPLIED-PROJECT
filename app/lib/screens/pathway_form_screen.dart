@@ -298,7 +298,7 @@ class _PathwayFormScreenState extends State<PathwayFormScreen> {
     'lifeExpectancy',
     'knownPoorMedicationAdherence',
     'cognitiveImpairment',
-    'testAvailable',
+    'testAvailability',
     'testWithinLast2Years',
     'T-score',
     'vitaminDLevel',

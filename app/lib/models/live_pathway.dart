@@ -99,7 +99,7 @@ const pathwayFactRegistry = <String, PathwayFactDefinition>{
   ),
   'clinicalRiskFactors': PathwayFactDefinition(
     key: 'clinicalRiskFactors',
-    label: 'Additional clinical risk factors',
+    label: 'Additional clinical risk factors (glucocorticoid, low BMI, recurrent falls)',
     kind: PathwayFactKind.boolean,
   ),
   'FRAX10YmajorOsteoporoticFractureRiskPercent': PathwayFactDefinition(

@@ -170,7 +170,7 @@ class MockAppRepository implements AppRepository {
     'lifeExpectancy',
     'knownPoorMedicationAdherence',
     'cognitiveImpairment',
-    'testAvailable',
+    'testAvailability',
     'testWithinLast2Years',
     'T-score',
     'hipVertebralOrMultipleFracturesInLast24M',
@@ -775,14 +775,14 @@ class MockAppRepository implements AppRepository {
         const ['testAvailability'],
       );
     }
-    final testAvailable = facts['testAvailability'] as bool;
+    final testAvailability = facts['testAvailability'] as bool;
     visit(
       'PATHWAY1',
       'DXA_SCAN_AVAILABILITY',
-      testAvailable,
-      testAvailable ? 'T_SCORE_CHECK' : 'RESULT_NO_DXA',
+      testAvailability,
+      testAvailability ? 'T_SCORE_CHECK' : 'RESULT_NO_DXA',
     );
-    if (!testAvailable) {
+    if (!testAvailability) {
       return finish(
         'PATHWAY1',
         'Use clinical risk assessment when DXA is not available.',
@@ -1606,21 +1606,21 @@ class MockAppRepository implements AppRepository {
     }
 
     evaluationInput = {
-      'testAvailable': facts['testAvailable'],
+      'testAvailability': facts['testAvailability'],
       'testWithinLast2Years': facts['testWithinLast2Years'],
     };
-    final testAvailable = requireBool('testAvailable');
-    if (testAvailable == null) {
+    final testAvailability = requireBool('testAvailability');
+    if (testAvailability == null) {
       return missingRule(
         'DXA_NOT_WITHIN_2YEARS',
         'Bone density test timing',
         evaluationInput,
-        ['testAvailable'],
+        ['testAvailability'],
       )!;
     }
     final dxaNotRecent =
-        testAvailable == true && facts['testWithinLast2Years'] == false;
-    if (testAvailable == true && facts['testWithinLast2Years'] is! bool) {
+        testAvailability == true && facts['testWithinLast2Years'] == false;
+    if (testAvailability == true && facts['testWithinLast2Years'] is! bool) {
       return missingRule(
         'DXA_NOT_WITHIN_2YEARS',
         'Bone density test timing',
@@ -1642,8 +1642,8 @@ class MockAppRepository implements AppRepository {
       });
     }
 
-    evaluationInput = {'testAvailable': testAvailable};
-    final dxaUnavailable = testAvailable == false;
+    evaluationInput = {'testAvailability': testAvailability};
+    final dxaUnavailable = testAvailability == false;
     addTrace(
       'DXA_DISAVAILABLE',
       dxaUnavailable,

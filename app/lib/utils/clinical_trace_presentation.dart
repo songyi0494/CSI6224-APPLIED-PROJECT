@@ -175,7 +175,7 @@ ClinicalTracePresentation clinicalTracePresentation(
       return ClinicalTracePresentation(
         title: 'DXA practicality',
         details: [
-          _line('DXA available for decision-making', input['testAvailable']),
+          _line('DXA available for decision-making', input['testAvailability']),
         ],
         result: _result(
           trace,

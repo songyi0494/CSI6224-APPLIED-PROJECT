@@ -29,7 +29,7 @@
             "question": "What is the patient's eGFR value? (Unit: mL/min)",
             "condition": {
                 "fact": "eGFR",
-                "operator": "greaterThan",
+                "operator": "greaterThanOrEqual",
                 "value": 30
             },
             "yes": "ON_OSTEOPOROSIS_TREATMENT",
@@ -73,7 +73,7 @@
         },
         "ADHERENCE_CONCERN": {
             "type": "decision",
-            "question": "Is the patient able to adhere to their treatment plan? (Please answer the following questions.)",
+            "question": "Is there concern about the patient's ablility to follow the treatment plan? (Please answer the following questions.)",
             "condition": {
                 "any": [
                     {

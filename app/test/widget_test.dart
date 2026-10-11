@@ -221,7 +221,8 @@ void main() {
     expect(find.text('Clinician-entered facts'), findsNothing);
     expect(find.text('Lifestyle Recommendations'), findsNothing);
     expect(find.text('Reload assessment'), findsNothing);
-    expect(find.text('Why This Result'), findsOneWidget);
+    expect(find.text('Why this recommendation'), findsOneWidget);
+    expect(find.text('View detailed decision trace'), findsOneWidget);
     expect(find.text('Common Advice'), findsOneWidget);
     expect(find.widgetWithText(ChoiceChip, 'Approve'), findsOneWidget);
     expect(find.widgetWithText(ChoiceChip, 'Withhold'), findsOneWidget);

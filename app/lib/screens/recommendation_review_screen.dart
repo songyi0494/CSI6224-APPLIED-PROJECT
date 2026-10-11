@@ -9,6 +9,7 @@ import '../models/clinical_result_contract.dart';
 import '../models/questionnaire.dart';
 import '../utils/clinical_labels.dart';
 import '../utils/clinical_trace_presentation.dart';
+import '../utils/recommendation_reasons.dart';
 import '../widgets/async_panel.dart';
 import '../widgets/global_sign_out.dart';
 import 'clinician_case_screen.dart';
@@ -337,20 +338,41 @@ class _RecommendationReviewScreenState extends State<RecommendationReviewScreen>
             ));
   }
 
-  Widget _whyThisResult(ClinicalCase assessment) {
+  Widget _whyThisResult(ClinicalCase assessment, int investigationRevision) {
     final visibleIndexes = <int>[
       if (assessment.evaluation != null)
         for (var i = 0; i < assessment.evaluation!.trace.length; i++)
           if (!_isRedirectTrace(i, assessment)) i,
     ];
     return Card(
-      child: ExpansionTile(
-        title: const Text('Why This Result'),
-        childrenPadding: const EdgeInsets.all(16),
-        children: [
-          for (var i = 0; i < visibleIndexes.length; i++)
-            _traceTile(assessment, visibleIndexes[i], i + 1),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Why this recommendation',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            for (final reason in recommendationReasons(
+              assessment,
+              investigationRevision: investigationRevision,
+            ))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text('• $reason'),
+              ),
+            ExpansionTile(
+              title: const Text('View detailed decision trace'),
+              childrenPadding: const EdgeInsets.all(16),
+              children: [
+                for (var i = 0; i < visibleIndexes.length; i++)
+                  _traceTile(assessment, visibleIndexes[i], i + 1),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -436,7 +458,7 @@ class _RecommendationReviewScreenState extends State<RecommendationReviewScreen>
                           child: PathwayActionView(action: action),
                         ),
                   ]),
-                  _whyThisResult(assessment),
+                  _whyThisResult(assessment, data.investigations.revision),
                   const SizedBox(height: 16),
                   _card('Common Advice', [
                     if (data.resultsReview == null) ...[

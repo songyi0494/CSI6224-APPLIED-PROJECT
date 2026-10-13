@@ -21,7 +21,6 @@ References:
     - NumPy docs, Generator.multivariate_normal:
       https://numpy.org/doc/stable/reference/random/generated/numpy.random.Generator.multivariate_normal.html
 
-AI assistance: generated initial code from gemini for synethetic dataset /Users/jonathangurusinghe/Desktop/Personal/Education/ECU/CSI6224/Project/osteoporosis-cdss/artifacts/figures/Screenshot 2026-10-13 at 08.40.36.png
 """
 
 from pathlib import Path

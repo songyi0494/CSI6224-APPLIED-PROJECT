@@ -2,10 +2,25 @@
 Train the advisory random forest on a cohort CSV and write the model card.
 
     python scripts/train.py
-    python scripts/train.py --csv data/patients.csv --entry-criteria-met --assume-dxa-recent --min-class-rows 2
+
+Run settings (CSV path, gap-filling assumptions, minimum rows per class) are
+the constants just below the imports.
+
+:author: Jonathan Gurusinghe
+ECU ID: 10658547
+
+References:
+    - scikit-learn docs: StratifiedKFold, train_test_split, classification metrics,
+      ConfusionMatrixDisplay and the OOB error example:
+      https://scikit-learn.org/stable/modules/cross_validation.html
+      https://scikit-learn.org/stable/modules/model_evaluation.html
+      https://scikit-learn.org/stable/auto_examples/ensemble/plot_ensemble_oob.html
+    - matplotlib docs, two y-axes with twinx:
+      https://matplotlib.org/stable/gallery/subplots_axes_and_figures/two_scales.html
+    - Mitchell, M. et al. (2019). Model Cards for Model Reporting. FAT* '19.
+
 """
 
-import argparse
 import json
 from pathlib import Path
 
@@ -31,6 +46,7 @@ from cdss.core.config import (
     MODEL_CARD_PATH,
     MODEL_PATH,
     MODEL_VERSION,
+    PATIENTS_PATH,
     PLATEAU_TOL,
     SEED,
 )
@@ -39,12 +55,31 @@ from cdss.ml.explainability import explain
 from cdss.ml.model import FEATURES, MISSING_SENTINEL, load_csv, wrec
 from cdss.ml.safety_wrapper import ClinicalSafetyWrapper
 
+# Run settings. For a smoke test on the questionnaire export use
+# CSV = PATIENTS_PATH, ENTRY_CRITERIA_MET = True, ASSUME_DXA_RECENT = True, MIN_ROWS = 2
+CSV = COHORT_PATH
+ENTRY_CRITERIA_MET = False  # rows were screened into the general pathway
+ASSUME_DXA_RECENT = False  # recorded T-scores come from a DXA within 2 years
+FRAX_HIGH_RISK = None  # e.g. (20.0, 3.0): FRAX MOF / hip % that set a blank highRisk
+MIN_ROWS = MIN_CLASS_ROWS  # endpoints with fewer rows than this are dropped
+
 SHAP_ROWS = 500
 N_ESTIMATORS_GRID = (50, 100, 200, 300, 500)
 
 
 def build_rf_pipeline(n_estimators: int, seed: int = SEED, oob_score: bool = True) -> Pipeline:
-    """Constructs an end-to-end clinical inference pipeline."""
+    """
+    Sentinel imputer plus random forest, with per-bootstrap class balancing.
+
+    :param n_estimators: number of trees
+    :type n_estimators: int
+    :param seed: random state
+    :type seed: int
+    :param oob_score: compute the out-of-bag score while fitting
+    :type oob_score: bool
+    :return: an unfitted pipeline
+    :rtype: sklearn.pipeline.Pipeline
+    """
     return Pipeline([
         ("imputer", SimpleImputer(
             strategy="constant",
@@ -65,7 +100,16 @@ def build_rf_pipeline(n_estimators: int, seed: int = SEED, oob_score: bool = Tru
 
 
 def plot_comparison_curve(grid: dict, chosen_n: int, save_path: Path) -> None:
-    """Plots and saves the OOB Error vs. Macro-F1 comparison curve across all n_estimators."""
+    """
+    Plot OOB error and CV macro-F1 against the number of trees.
+
+    :param grid: n_estimators to ``{"oob_error", "macro_f1"}``
+    :type grid: dict
+    :param chosen_n: selected forest size, marked with a dashed line
+    :type chosen_n: int
+    :param save_path: where to save the PNG
+    :type save_path: pathlib.Path
+    """
     trees = sorted(grid.keys())
     oob_errors = [grid[n]["oob_error"] for n in trees]
     macro_f1s = [grid[n]["macro_f1"] for n in trees]
@@ -76,7 +120,6 @@ def plot_comparison_curve(grid: dict, chosen_n: int, save_path: Path) -> None:
     line1 = ax1.plot(trees, oob_errors, marker="o", color="tab:red", lw=2, label="OOB Error")
     line2 = ax2.plot(trees, macro_f1s, marker="s", color="tab:blue", lw=2, label="CV Macro-F1")
 
-    # Mark the chosen plateau size
     vline = ax1.axvline(chosen_n, color="gray", linestyle="--", label=f"Selected (n={chosen_n})")
 
     ax1.set_xlabel("n_estimators (Number of Trees)")
@@ -96,7 +139,16 @@ def plot_comparison_curve(grid: dict, chosen_n: int, save_path: Path) -> None:
 
 
 def cross_validate(X: pd.DataFrame, y: np.ndarray):
-    """Sweep N_ESTIMATORS_GRID with stratified CV and return the smallest forest on the plateau."""
+    """
+    Sweep N_ESTIMATORS_GRID with stratified CV and return the smallest forest on the plateau.
+
+    :param X: training features
+    :type X: pandas.DataFrame
+    :param y: endpoint labels
+    :type y: numpy.ndarray
+    :return: chosen n_estimators, per-size results (with out-of-fold predictions) and fold index per row
+    :rtype: tuple[int, dict, numpy.ndarray]
+    """
     n_splits = max(2, min(5, pd.Series(y).value_counts().min()))
     splits = list(StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=SEED).split(X, y))
     folds = np.zeros(len(y), dtype=int)
@@ -111,7 +163,7 @@ def cross_validate(X: pd.DataFrame, y: np.ndarray):
             pipe = build_rf_pipeline(n, oob_score=True).fit(X.iloc[tr], y[tr])
             pred[val] = pipe.predict(X.iloc[val])
 
-            # Explicit subtraction
+            # No usable OOB score counts as the worst case so this size can't win the plateau
             oob_val = getattr(pipe.named_steps["forest"], "oob_score_", np.nan)
             oob_errors.append(1.0 - oob_val if not np.isnan(oob_val) else 1.0)
             f1s.append(f1_score(y[val], pred[val], average="macro", zero_division=0))
@@ -133,7 +185,6 @@ def cross_validate(X: pd.DataFrame, y: np.ndarray):
     ]
     chosen = min(plateau) if plateau else max(grid, key=lambda n: grid[n]["macro_f1"])
 
-    # Terminal Comparison Output
     comparison_records = [
         {
             "n_estimators": n,
@@ -155,6 +206,17 @@ def cross_validate(X: pd.DataFrame, y: np.ndarray):
 
 
 def fold_report(y: np.ndarray, pred: np.ndarray, folds: np.ndarray) -> list:
+    """
+    Per-fold WREC, weighted recall and count of undertreated anabolic-eligible patients.
+
+    :param y: true endpoints
+    :type y: numpy.ndarray
+    :param pred: out-of-fold predictions
+    :type pred: numpy.ndarray
+    :param folds: fold index per row
+    :type folds: numpy.ndarray
+    :rtype: list[dict]
+    """
     rows = []
     for k in np.unique(folds):
         m = folds == k
@@ -171,40 +233,38 @@ def fold_report(y: np.ndarray, pred: np.ndarray, folds: np.ndarray) -> list:
     return rows
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--csv", type=Path, default=COHORT_PATH)
-    parser.add_argument("--entry-criteria-met", action="store_true",
-                        help="rows were screened into the general pathway")
-    parser.add_argument("--assume-dxa-recent", action="store_true",
-                        help="recorded T-scores come from a DXA within 2 years")
-    parser.add_argument("--frax-high-risk", type=float, nargs=2, metavar=("MOF", "HIP"),
-                        help="FRAX % thresholds that set highRisk when it is blank")
-    parser.add_argument("--min-class-rows", type=int, default=MIN_CLASS_ROWS,
-                        help="drop endpoints with fewer rows than this")
-    args = parser.parse_args()
+def main(csv: Path = CSV, entry_criteria_met: bool = ENTRY_CRITERIA_MET, dxa_recent: bool = ASSUME_DXA_RECENT,
+         frax_high_risk=FRAX_HIGH_RISK, min_rows: int = MIN_ROWS) -> None:
+    """
+    Load the cohort, tune and train the forest, then write the model, figures and model card.
 
-    X, y, info = load_csv(
-        args.csv,
-        args.entry_criteria_met,
-        args.assume_dxa_recent,
-        tuple(args.frax_high_risk) if args.frax_high_risk else None,
-    )
+    :param csv: cohort CSV path
+    :type csv: pathlib.Path
+    :param entry_criteria_met: assume rows were screened into the general pathway
+    :type entry_criteria_met: bool
+    :param dxa_recent: assume recorded T-scores come from a DXA within 2 years
+    :type dxa_recent: bool
+    :param frax_high_risk: FRAX (MOF %, hip %) thresholds that set a blank highRisk, or None
+    :type frax_high_risk: tuple or None
+    :param min_rows: drop endpoints with fewer rows than this
+    :type min_rows: int
+    """
+    X, y, info = load_csv(csv, entry_criteria_met, dxa_recent, tuple(frax_high_risk) if frax_high_risk else None)
     if "warning" in info:
         print(info["warning"])
     if any(info["invariant_violations"].values()):
         raise SystemExit(f"Labels break FSFHG safety invariants: {info['invariant_violations']}")
 
     counts = pd.Series(y).value_counts()
-    dropped = counts[counts < args.min_class_rows].to_dict()
+    dropped = counts[counts < min_rows].to_dict()
     keep = ~pd.Series(y).isin(list(dropped)).to_numpy()
     X, y = X[keep].reset_index(drop=True), y[keep]
     if pd.Series(y).nunique() < 2:
-        raise SystemExit(f"Need 2+ endpoints with {args.min_class_rows}+ rows each; got {counts.to_dict()}")
+        raise SystemExit(f"Need 2+ endpoints with {min_rows}+ rows each; got {counts.to_dict()}")
     if dropped:
         print(f"Dropped sparse endpoints: {dropped}")
 
-    # Explicit multiplication: 0.2 * len(y)
+    # 20% hold-out, but at least one row per class so stratify doesn't fail
     test_size = max(int(round(0.2 * len(y))), pd.Series(y).nunique())
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, stratify=y, random_state=SEED
@@ -238,7 +298,7 @@ def main() -> None:
     card = {
         "model_version": MODEL_VERSION,
         "guideline_version": GUIDELINE_VERSION,
-        "data": {**info, "source": str(args.csv), "classes_dropped": dropped},
+        "data": {**info, "source": str(csv), "classes_dropped": dropped},
         "features": FEATURES,
         "classes": [str(c) for c in pipeline.classes_],
         "n_estimators": n_estimators,

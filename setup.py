@@ -1,3 +1,14 @@
+"""
+Package definition for the OsteoCare CDSS (src layout, editable install via requirements.txt).
+
+:author: Jonathan Gurusinghe
+ECU ID: 10658547
+
+References:
+    - setuptools docs, package discovery and the src layout:
+      https://setuptools.pypa.io/en/latest/userguide/package_discovery.html
+"""
+
 from setuptools import find_packages, setup
 
 setup(

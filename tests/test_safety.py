@@ -1,3 +1,20 @@
+"""
+Tests for the safety guardrail, the missing-value sentinel and the rule that the
+model can flag a recommendation but never change its endpoint.
+
+:author: Jonathan Gurusinghe
+ECU ID: 10658547
+
+References:
+    - pytest docs, parametrize: https://docs.pytest.org/en/stable/how-to/parametrize.html
+    - scikit-learn docs, DummyClassifier:
+      https://scikit-learn.org/stable/modules/generated/sklearn.dummy.DummyClassifier.html
+    - FastAPI docs, overriding dependencies in tests:
+      https://fastapi.tiangolo.com/advanced/testing-dependencies/
+
+
+"""
+
 import math
 
 import pandas as pd
@@ -53,6 +70,8 @@ def test_missing_sentinel_cannot_pass_for_a_real_t_score():
 
 
 class DisagreeingModel(NoModel):
+    """Model stub that always disagrees with the guideline."""
+
     loaded = True
 
     def opinion(self, facts, guideline_endpoint):
@@ -62,6 +81,7 @@ class DisagreeingModel(NoModel):
 
 @pytest.fixture
 def client():
+    """Test client; dependency overrides are cleared afterwards."""
     yield TestClient(app)
     app.dependency_overrides.clear()
 

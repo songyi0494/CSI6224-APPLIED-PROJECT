@@ -5,6 +5,25 @@ Each rule's condition returns True, False or None (unknown). The first True
 rule decides; a None stops evaluation and asks for the missing facts. Rule
 order encodes the flowchart: a rule is reached only if every earlier rule
 was False.
+
+This module is the authoritative decision layer of the CDSS. It also defines
+the ``Facts`` input schema shared by the API, the CSV loader and the model.
+
+:author: Jonathan Gurusinghe
+ECU ID: 10658547
+
+References:
+    - FSFHG osteoporosis treatment Pathways 1 and 2 and project presentation
+      slides 15-16 (unit-supplied): rule order, endpoints and drug regimens.
+    - Pharmaceutical Benefits Scheme (PBS) listings for osteoporosis medicines:
+      https://www.pbs.gov.au/
+    - Kleene, S. C. (1952). Introduction to Metamathematics. North-Holland
+      (three-valued logic used for unknown facts in ``any_of``).
+    - Pydantic v2 docs, models and validators:
+      https://docs.pydantic.dev/latest/concepts/models/
+      https://docs.pydantic.dev/latest/concepts/validators/
+
+
 """
 
 import math
@@ -35,7 +54,14 @@ ALIASES = {
 
 
 def clean(value):
-    """CSV/DB cell -> plain Python value; NaN -> None, 1.0 -> 1."""
+    """
+    Normalise a CSV or database cell to a plain Python value.
+
+    NaN becomes None, numpy scalars become Python scalars and whole floats become ints.
+
+    :param value: raw cell value
+    :return: the cleaned value, or None when blank
+    """
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return None
     value = value.item() if hasattr(value, "item") else value
@@ -45,7 +71,16 @@ def clean(value):
 
 
 def canonical(record: Dict[str, Any]) -> Dict[str, Any]:
-    """Rename aliases to Facts fields and drop unknown keys. A recorded value beats a blank alias."""
+    """
+    Rename aliases to Facts fields and drop unknown keys.
+
+    A recorded value beats a blank alias, so an empty column can't erase an answer.
+
+    :param record: one row keyed by field names or aliases
+    :type record: dict
+    :return: the row keyed by Facts field names
+    :rtype: dict
+    """
     out: Dict[str, Any] = {}
     for key, value in record.items():
         name = FIELD_BY_NAME.get(key)
@@ -56,7 +91,13 @@ def canonical(record: Dict[str, Any]) -> Dict[str, Any]:
 
 
 class Facts(BaseModel):
-    """Every field is optional: None means "not recorded" and is never defaulted."""
+    """
+    Patient facts read by the pathway rules.
+
+    Every field is optional: None means "not recorded" and is never defaulted.
+    Aliases are resolved before validation, and ``T_score`` falls back to the
+    lowest recorded site T-score.
+    """
 
     model_config = ConfigDict(extra="ignore")
 
@@ -117,7 +158,20 @@ FIELD_BY_NAME: Dict[str, str] = {**{n: n for n in Facts.model_fields}, **ALIASES
 
 def fill_gaps(f: Facts, screened: bool = ASSUME_SCREENED, dxa_recent: bool = ASSUME_DXA_RECENT,
               frax_high_risk: Optional[Tuple[float, float]] = FRAX_HIGH_RISK) -> Tuple[Facts, List[str]]:
-    """Fill facts the questionnaire never asks. Only blanks are filled; returns what was assumed."""
+    """
+    Fill facts the questionnaire never asks. Only blanks are filled.
+
+    :param f: patient facts
+    :type f: Facts
+    :param screened: assume an untreated patient was screened into the general pathway
+    :type screened: bool
+    :param dxa_recent: assume recorded T-scores come from a DXA within 2 years
+    :type dxa_recent: bool
+    :param frax_high_risk: FRAX (major osteoporotic %, hip %) thresholds for ``highRisk``, or None to skip
+    :type frax_high_risk: tuple or None
+    :return: the updated facts and a note for every assumption applied
+    :rtype: tuple[Facts, list[str]]
+    """
     update: Dict[str, Any] = {}
     notes: List[str] = []
     # Treated patients go to Pathway 2, which has no entry gates
@@ -138,12 +192,22 @@ def fill_gaps(f: Facts, screened: bool = ASSUME_SCREENED, dxa_recent: bool = ASS
 
 
 def excluded_site(site: Optional[str]) -> Optional[bool]:
+    """
+    Check whether a free-text fracture site is one the pathway excludes (hand, foot, face, ankle).
+
+    :param site: fracture site description
+    :type site: str or None
+    :return: True if excluded, False if eligible, None if not recorded
+    :rtype: bool or None
+    """
     if site is None:
         return None
     return any(w in EXCLUDED_SITE_WORDS for w in site.lower().replace("/", " ").replace("-", " ").split())
 
 
 Tri = Optional[bool]
+
+# Three-valued comparisons: an unknown input gives an unknown answer rather than False
 
 
 def lt(x, t) -> Tri:
@@ -167,7 +231,13 @@ def no(x) -> Tri:
 
 
 def any_of(*values: Tri) -> Tri:
-    """Kleene OR: one known True decides even when the others are unknown."""
+    """
+    Kleene OR: one known True decides even when the others are unknown.
+
+    :param values: three-valued inputs
+    :return: True, False, or None when undecidable
+    :rtype: bool or None
+    """
     if any(v is True for v in values):
         return True
     return None if any(v is None for v in values) else False
@@ -175,6 +245,16 @@ def any_of(*values: Tri) -> Tri:
 
 @dataclass(frozen=True)
 class Rule:
+    """
+    One flowchart decision.
+
+    :ivar id: stable rule identifier shown in the trace
+    :ivar question: human-readable question
+    :ivar when: condition returning True, False or None
+    :ivar then: endpoint when the condition is True, or None to fall through
+    :ivar needs: facts to ask for when the condition is unknown
+    """
+
     id: str
     question: str
     when: Callable[[Facts], Tri]
@@ -184,6 +264,15 @@ class Rule:
 
 @dataclass
 class Result:
+    """
+    Outcome of evaluating a pathway.
+
+    :ivar endpoint: key into ``ENDPOINTS``
+    :ivar rule_id: rule that decided
+    :ivar missing: facts needed when the endpoint is NEEDS_MORE_INFORMATION
+    :ivar trace: (rule id, question, answer) for every rule visited
+    """
+
     endpoint: str
     rule_id: str
     missing: List[str] = field(default_factory=list)
@@ -191,15 +280,33 @@ class Result:
 
     @property
     def decision(self) -> str:
+        """
+        :return: the decision category of the endpoint (e.g. ``treatment_recommended``)
+        :rtype: str
+        """
         return ENDPOINTS[self.endpoint][0]
 
 
 def screened(cond: Callable[[Facts], Tri]) -> Callable[[Facts], Tri]:
-    """Entry gate that passes when the patient is recorded as screened into the pathway."""
+    """
+    Wrap an entry-gate condition so it passes when the patient is recorded as screened.
+
+    :param cond: the gate condition
+    :type cond: callable
+    :return: a condition that is False for screened patients, otherwise ``cond``
+    :rtype: callable
+    """
     return lambda f: False if f.entryCriteriaMet else cond(f)
 
 
 def t_above_severe(f: Facts) -> Tri:
+    """
+    Pathway 2 Q6: T-score above -3.0, using the questionnaire's ``lowBMD`` when no T-score is recorded.
+
+    :param f: patient facts
+    :type f: Facts
+    :rtype: bool or None
+    """
     return gt(f.T_score, SEVERE_T) if f.T_score is not None else no(f.lowBMD)
 
 
@@ -312,6 +419,18 @@ def _answer(value: Tri) -> str:
 
 
 def _walk(rules: List[Rule], f: Facts, trace: List[Tuple[str, str, str]]) -> Result:
+    """
+    Run a rule table until a rule decides or an unknown stops it.
+
+    :param rules: ordered rule table
+    :type rules: list[Rule]
+    :param f: patient facts
+    :type f: Facts
+    :param trace: trace to append visited rules to
+    :type trace: list
+    :return: the pathway result
+    :rtype: Result
+    """
     for rule in rules:
         value = rule.when(f)
         trace.append((rule.id, rule.question, _answer(value)))
@@ -324,6 +443,14 @@ def _walk(rules: List[Rule], f: Facts, trace: List[Tuple[str, str, str]]) -> Res
 
 
 def evaluate(f: Facts) -> Result:
+    """
+    Route a patient to Pathway 1 (untreated) or Pathway 2 (treated) and evaluate it.
+
+    :param f: patient facts
+    :type f: Facts
+    :return: the guideline endpoint with its trace and any missing facts
+    :rtype: Result
+    """
     trace: List[Tuple[str, str, str]] = []
     treated = f.osteoporosisTreatmentStatus
     trace.append(("G_ROUTING", "Already on osteoporosis treatment?", _answer(treated)))

@@ -1,3 +1,23 @@
+"""
+Tests for the guideline rules, CSV loading, case fact merging and the API.
+
+Pathway tests start from a baseline patient (``P1``/``P2``) and change one or
+two facts, so each case checks a single branch of the flowchart.
+
+:author: Jonathan Gurusinghe
+ECU ID: 10658547
+
+References:
+    - pytest docs, parametrize and fixtures:
+      https://docs.pytest.org/en/stable/how-to/parametrize.html
+      https://docs.pytest.org/en/stable/how-to/fixtures.html
+    - FastAPI docs, testing and overriding dependencies:
+      https://fastapi.tiangolo.com/tutorial/testing/
+      https://fastapi.tiangolo.com/advanced/testing-dependencies/
+
+
+"""
+
 import io
 import math
 from datetime import date
@@ -32,14 +52,27 @@ CSV_ROW = {
 
 
 def p1(**kw) -> Facts:
+    """
+    :param kw: facts to override on the Pathway 1 baseline
+    :rtype: Facts
+    """
     return Facts(**{**P1, **kw})
 
 
 def p2(**kw) -> Facts:
+    """
+    :param kw: facts to override on the Pathway 2 baseline
+    :rtype: Facts
+    """
     return Facts(**{**P2, **kw})
 
 
 def _csv(rows) -> io.StringIO:
+    """
+    :param rows: list of row dicts
+    :return: the rows as an in-memory CSV
+    :rtype: io.StringIO
+    """
     return io.StringIO(pd.DataFrame(rows).to_csv(index=False))
 
 
@@ -171,6 +204,8 @@ def test_unrecognised_csv_is_rejected():
 
 
 class NoModel:
+    """Stand-in for TreatmentModel when no model is trained."""
+
     loaded, card = False, {}
 
     def opinion(self, *_):
@@ -196,6 +231,7 @@ class FakeSupabase:
 
 @pytest.fixture
 def client():
+    """Test client with no model loaded; dependency overrides are cleared afterwards."""
     app.dependency_overrides[recommendations.get_model] = NoModel
     yield TestClient(app)
     app.dependency_overrides.clear()

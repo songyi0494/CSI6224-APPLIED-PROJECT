@@ -36,7 +36,7 @@ cp .env.example .env
 ## Run
 
 ```bash
-python scripts/export_dataset.py --samples 30000
+python scripts/export_dataset.py
 python scripts/train.py
 uvicorn cdss.api.main:app --env-file .env
 pytest
@@ -63,18 +63,21 @@ Columns are matched to `Facts` (`src/cdss/core/guidelines.py`) by name or alias:
 
 `sequencingFromDenosumab` is not used by any rule or by the model; when it is true and the endpoint is anabolic, a review note about rebound bone loss is added.
 
-Labels come from an `endpoint` column if present, otherwise from the guideline engine. Facts missing from the CSV make the rules stop at `NEEDS_MORE_INFORMATION`; three opt-in flags fill Pathway 1 gaps and are written to the model card:
+Labels come from an `endpoint` column if present, otherwise from the guideline engine. Facts missing from the CSV make the rules stop at `NEEDS_MORE_INFORMATION`; three opt-in settings at the top of `scripts/train.py` fill Pathway 1 gaps and are written to the model card:
 
-| Flag | Fills | Valid when |
+| Setting | Fills | Valid when |
 |---|---|---|
-| `--entry-criteria-met` | Minimal trauma fracture, eligible site, postmenopausal woman or man ≥ 50 | The cohort was screened into the general pathway |
-| `--assume-dxa-recent` | `testWithinLast2Years` for rows with a T-score | T-scores come from a DXA within 2 years |
-| `--frax-high-risk MOF HIP` | `highRisk` from FRAX (%) | Thresholds come from your local guideline |
+| `ENTRY_CRITERIA_MET = True` | Minimal trauma fracture, eligible site, postmenopausal woman or man ≥ 50 | The cohort was screened into the general pathway |
+| `ASSUME_DXA_RECENT = True` | `testWithinLast2Years` for rows with a T-score | T-scores come from a DXA within 2 years |
+| `FRAX_HIGH_RISK = (MOF, HIP)` | `highRisk` from FRAX (%) | Thresholds come from your local guideline |
 
-Endpoints with fewer than 10 rows are dropped. A small export like `patients.csv` needs `--min-class-rows` lowered, and the result is a smoke test, not a model:
+Endpoints with fewer than 10 rows are dropped. A small export like `patients.csv` needs `MIN_ROWS` lowered, and the result is a smoke test, not a model. Set these in `scripts/train.py`, then run `python scripts/train.py`:
 
-```bash
-python scripts/train.py --csv data/patients.csv --entry-criteria-met --assume-dxa-recent --min-class-rows 2
+```python
+CSV = PATIENTS_PATH
+ENTRY_CRITERIA_MET = True
+ASSUME_DXA_RECENT = True
+MIN_ROWS = 2
 ```
 
 ## Getting a recommendation

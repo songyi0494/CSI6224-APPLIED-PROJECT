@@ -1,3 +1,28 @@
+"""
+Central configuration: file paths, clinical thresholds and environment settings.
+
+Every clinical cut-off used by the guideline engine and the safety guardrail lives
+here so a threshold change happens in one place. Runtime settings (Supabase
+credentials, CORS origins, model paths) are read from environment variables once
+and cached.
+
+:author: Jonathan Gurusinghe
+ECU ID: 10658547
+
+References:
+    - FSFHG osteoporosis treatment Pathways 1 and 2 (unit-supplied clinical
+      guideline): renal gate, T-score and frailty thresholds.
+    - Rockwood K. et al. (2005). A global clinical measure of fitness and frailty
+      in elderly people. CMAJ, 173(5), 489-495 (Clinical Frailty Scale).
+    - FRAX fracture risk assessment tool, University of Sheffield:
+      https://frax.shef.ac.uk/FRAX/
+    - Python docs, dataclasses and functools.lru_cache:
+      https://docs.python.org/3/library/dataclasses.html
+      https://docs.python.org/3/library/functools.html#functools.lru_cache
+
+
+"""
+
 import os
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -45,11 +70,32 @@ MIN_CLASS_ROWS = 10
 
 
 def _env(name: str, default: str = "") -> str:
+    """
+    Read an environment variable, tolerating stray whitespace and quotes from .env files.
+
+    :param name: environment variable name
+    :type name: str
+    :param default: value used when the variable is unset
+    :type default: str
+    :return: the cleaned value
+    :rtype: str
+    """
     return os.getenv(name, default).strip().strip("'\"")
 
 
 @dataclass(frozen=True)
 class Settings:
+    """
+    Immutable runtime settings, populated from the environment at construction time.
+
+    :ivar supabase_url: Supabase project URL
+    :ivar supabase_key: Supabase service role key
+    :ivar cors_origins: extra allowed CORS origins (localhost is always allowed)
+    :ivar model_path: path to the trained joblib pipeline
+    :ivar model_card_path: path to the model card JSON
+    :ivar confidence_floor: model confidence below which a review reason is added
+    """
+
     supabase_url: str = field(default_factory=lambda: _env("SUPABASE_URL"))
     supabase_key: str = field(default_factory=lambda: _env("SUPABASE_SERVICE_ROLE_KEY"))
     # Empty means only localhost origins are allowed
@@ -61,9 +107,19 @@ class Settings:
 
     @property
     def supabase_enabled(self) -> bool:
+        """
+        :return: True when both the Supabase URL and key are set
+        :rtype: bool
+        """
         return bool(self.supabase_url and self.supabase_key)
 
 
 @lru_cache
 def get_settings() -> Settings:
+    """
+    Build the settings once per process.
+
+    :return: the cached settings instance
+    :rtype: Settings
+    """
     return Settings()

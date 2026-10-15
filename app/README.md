@@ -16,8 +16,12 @@ Mock mode requires no Supabase credentials.
 
 ### Live mode configuration
 
-Live mode targets the Songyi Supabase project `cwxxumfmvmspofouqxxh` and
-requires configuration through compile-time dart-defines:
+The Flutter application connects to the Supabase project specified
+through compile-time dart-defines.
+
+The current Supabase URL and publishable key must be obtained
+from the backend owner and provided when launching or building
+the application.
 
 ```text
 APP_MODE=supabase
